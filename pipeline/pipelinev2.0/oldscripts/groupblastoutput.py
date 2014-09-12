@@ -57,7 +57,10 @@ for contig in dictContigHits.iterkeys():
 				
 	ddictContigGroupHits[contig] = groups
 
-hgtmodules.printBlast_output(ddictContigGroupHits)
+for contig in ddictContigGroupHits.iterkeys():
+	for group in ddictContigGroupHits[contig].iterkeys():
+		for hit in ddictContigGroupHits[contig][group]:
+			print hit
 '''			
 	#Find out order of groups by start site
 	startlist = []

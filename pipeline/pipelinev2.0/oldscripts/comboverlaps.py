@@ -25,32 +25,77 @@ ddictContigGroupHits = hgtmodules.contigGroupHits(dictContigHits)
 
 #For each group in each contig, find the smallest and largest start/end sites among the alignments
 dictContigGroupSorted = hgtmodules.sortGroups(ddictContigGroupHits)
-print dictContigGroupSorted
+
 mod_ddictContigGroupHits = {}
 for contig in dictContigGroupSorted.keys():
 	grouplist = []
 	for i in range(len(dictContigGroupSorted[contig])):	
-		group = dictContigGroupSorted[contig][i]
-		oldname, newname = group[0], 'Group'+str(i+1)
-		start, end = float(group[1]), float(group[2])
-		if i == 0: #For the first group
-			startf, endf = start, end
-			print contig, oldname, newname
-			grouplist.append(newname)
-		else: #For the next group, see if it overlaps
+		currgroup = dictContigGroupSorted[contig][i]
+		curroldname, currnewname = currgroup[0], 'Group'+str(i+1)
+		currstart, currend = float(currgroup[1]), float(currgroup[2])
+		if i == 0: #For the first group, assign the current names
+			info = curroldname, currnewname
+			grouplist.append(info)
+			#print contig, info, 'first'
+		else: #For all other groups, see if they overlap with the previous group
 			prevgroup = dictContigGroupSorted[contig][i-1]
-			overlap = hgtmodules.calcOverlap(startf, endf, start, end)
-			if overlap > args.overlap: #If there is enough overlap, merge the groups
-				if len(grouplist[len(grouplist)-1]) > 1:
-					print grouplist
-					grouplist[len(grouplist)-1].append(newname)
-				else: 
-					grouplist.append(['Group'+str(i), newname])
-				print contig, prevgroup[0], 'Group'+str(i), oldname, newname, '0'	
-			else: #Otherwise,
-				grouplist.append(newname)
-				print contig, oldname, newname, 'notoverlapping'
-		print grouplist
+			prevoldname, prevnewname = prevgroup[0], 'Group'+str(i)
+			overlap = hgtmodules.calcOverlap(prevstart, prevend, currstart, currend)
+			if overlap > args.overlap: #If there is enough overlap, merge the groups.
+				if len(grouplist[len(grouplist)-1][1].split(',')) == 1: #If previous group is not merged, create a new merged group.	
+					oldmergedname = prevoldname + ',' + curroldname
+					newmergedname = prevnewname + ',' + currnewname
+				elif len(grouplist[len(grouplist)-1][1].split(',')) > 1: #If the previous group is merged, check for multiple merges.
+					if prevnewname in grouplist[len(grouplist)-1][1].split(','): #Merge 3+ groups if the previous merged groups are consecutive to the current one.
+						oldmergedname = grouplist[len(grouplist)-1][0] + ',' + curroldname
+						newmergedname = grouplist[len(grouplist)-1][1] + ',' + currnewname
+					else: #Add as a new merged group if the previous merged groups are NOT consecutive.
+						oldmergedname = prevoldname + ',' + curroldname
+                                        	newmergedname = prevnewname + ',' + currnewname
+				info = oldmergedname, newmergedname
+				grouplist.pop() #Since we are adding a merged group, the previous entry should be deleted.
+				grouplist.append(info)
+				#print contig, info, 'overlap'
+			else: #If the groups do not overlap, assign the current names
+				info = curroldname, currnewname
+				grouplist.append(info)
+				#print contig, info, 'notoverlapping'
+		prevstart, prevend = currstart, currend #Assign the current groups as previous groups, so that we can continue comparisons
+
+
+	#With the newly ordered groups, create a new dictionary that has the correct group names
+	GroupHits = {}
+	for oldnames, newnames in grouplist:
+		if len(oldnames.split(',')) == 1:
+			hits = ddictContigGroupHits[contig][oldnames]
+			for j in range(len(hits)):
+				#print hits[j], 'old'
+				hits[j][14] = newnames
+				#print hits[j], 'new', '\n'
+			GroupHits[newnames] = hits
+		else:
+			mergednewname = 'merged' #Create the merged name first
+			for k in range(len(newnames.split(','))):
+				mergednewname += newnames.split(',')[k]
+			newHits = [] #Put all the revised hits into a list
+			for l in range(len(oldnames.split(','))): #Get all the hits for the groups to be merged
+				hits = ddictContigGroupHits[contig][oldnames.split(',')[l]]
+				for m in range(len(hits)):
+					hits[m][14] = mergednewname
+					newHits.append(hits[m])
+			GroupHits[mergednewname] = newHits
+	mod_ddictContigGroupHits[contig] = GroupHits #Create the new final dictionary
+
+hgtmodules.printBlast_output(mod_ddictContigGroupHits)#This prints it out of order, could potentially add order to it by combining 2 modules...do I wnat this...
+
+
+#Could use this to get all group information
+#mod_ddict_sorted = hgtmodules.sortGroups(mod_ddictContigGroupHits)
+#for contig in mod_ddictContigGroupHits:
+#	for info in mod_ddict_sorted[contig]:
+#		groupname = info[0]
+#		for 
+
 ''' 
 mod_ddictContigGroupHits = {}
 for contig in ddictContigGroupHits.iterkeys():

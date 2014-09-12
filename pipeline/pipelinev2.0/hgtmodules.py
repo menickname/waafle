@@ -39,7 +39,7 @@ def contigGroupHits(dictContigHits):
 	return ddictContigGroupHits
 
 #This function takes a dictioanry of dictionaries and sorts the groups based on start site.
-def sortGroups(ddictContigGroupHits2, grouped=True):
+def sortGroups(ddictContigGroupHits2):
 	dictContigGroupOrder = {}
 	for contig in ddictContigGroupHits2.iterkeys():
 		groupcoordlist = []
@@ -56,35 +56,20 @@ def sortGroups(ddictContigGroupHits2, grouped=True):
 		groupcoordlist.sort(key=lambda x: x[1])
 		dictContigGroupOrder[contig] = groupcoordlist
 	return dictContigGroupOrder
-	'''	
-		dictGroupHits = {}
-		for j in range(len(groupcoordlist)):
-			oldgroupname = groupcoordlist[j][1]
-			newgroupname = 'Group' + str(j+1)
-			#if grouped == True: 
-			#	if oldgroupname != newgroupname:
-			#		ddictContigGroupHits2[contig][newgroupname] = ddictContigGroupHits2[contig].pop(oldgroupname)
-			#		for k in range(len(ddictContigGroupHits2[contig][newgroupname])):
-			#			ddictContigGroupHits2[contig][newgroupname][k][14] = newgroupname
-			for k in range(len(ddictContigGroupHits2[contig][oldgroupname])):
-				if grouped == True:
-					if oldgroupname != newgroupname:
-						ddictContigGroupHits2[contig][oldgroupname][k][14] = newgroupname
-					else:
-						pass
-				else:
-					#ddictContigGroupHits2[contig][oldgroupname][k].append(newgroupname)
-					linelist = ddictContigGroupHits2[contig][oldgroupname][k][:]
-					linelist.append(newgroupname)
-					print '\t'.join(str(linelist[l]) for l in range(len(linelist)))
-					#print newline
-				#dictGroupHits.setdefault(newgroupname, []).append(newline)
-		#newddictContigGroupHits[contig] = dictGroupHits
-	#return newddictContigGroupHits
-	'''
 
-def printBlast_output(ddictContigGroupHits3):
-	for contig in ddictContigGroupHits3.iterkeys():
-		for group in ddictContigGroupHits3[contig].iterkeys():
-			for l in range(len(ddictContigGroupHits3[contig][group])):
-				print '\t'.join(ddictContigGroupHits3[contig][group][l]) + '\t' + group	
+def scoreOrgs(dddictContigOrgGroupScores, ddictContigGroupLen, contig):
+	mystuff = []
+	for org in dddictContigOrgGroupScores[contig].iterkeys():
+		numgroups = len(dddictContigOrgGroupScores[contig][org].keys())
+		sumscorelen = 0
+		totalbp = 0
+		totallen = 0
+		for group in dddictContigOrgGroupScores[contig][org].iterkeys():
+                	info = dddictContigOrgGroupScores[contig][org][group]
+                        sumscorelen += info[0]*info[5]
+                        totalbp += info[5]
+			totallen += ddictContigGroupLen[contig][group]
+		avgscore_groups = sumscorelen/float(totalbp)
+		avgcov_groups = totalbp/float(totallen)
+		mystuff.append([org, avgscore_groups, avgcov_groups, totallen, numgroups])
+	return mystuff
