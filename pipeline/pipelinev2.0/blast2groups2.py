@@ -64,11 +64,6 @@ for contig in dictContigHits.iterkeys():
                         dictGroupHits[groupname].append(hit)
 	ddictContigGroupHits[contig] = dictGroupHits
 
-#for contig in ddictContigGroupHits.iterkeys():
-	#for group in ddictContigGroupHits[contig].iterkeys():
-		#for hit in ddictContigGroupHits[contig][group]:
-			#print contig, group, hit, 'after grouping'
-
 #Merge overlapping groups
 dictContigGroupSorted = hgtmodules.sortGroups(ddictContigGroupHits) #First, sort the groups by start site.
 mod_ddictContigGroupHits = {}
@@ -115,7 +110,6 @@ for contig in dictContigGroupSorted.keys(): #Continue by deciding in whether eac
                         dictGroupHits2[mergednewname] = newHits
         mod_ddictContigGroupHits[contig] = dictGroupHits2 #Create the new final dictionary
 
-
 #Remove groups that are below the length threshold
 mod_ddict_sorted = hgtmodules.sortGroups(mod_ddictContigGroupHits)	
 for contig in mod_ddict_sorted.iterkeys():
@@ -129,8 +123,8 @@ for contig in mod_ddict_sorted.iterkeys():
 			cnt += 1	
 			#Renumber and print out the new group names
 			newgroupname = 'Group' + str(cnt)
-			print contig, groupname, newgroupname, start, end
-			#for o in range(len(mod_ddictContigGroupHits[contig][groupname])):
-			#	hit = mod_ddictContigGroupHits[contig][groupname][o]
-			#	hit[14] = newgroupname
-			#	print '\t'.join(str(hit[p]) for p in range(len(hit)))
+			#print contig, newgroupname, start, end #Use this to see how many groups there are, and their lengths
+			for o in range(len(mod_ddictContigGroupHits[contig][groupname])):
+				hit = mod_ddictContigGroupHits[contig][groupname][o]
+				hit[14] = newgroupname
+				print '\t'.join(str(hit[p]) for p in range(len(hit)))

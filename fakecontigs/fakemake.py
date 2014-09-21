@@ -1,18 +1,18 @@
 #!/usr/bin/python
 
 '''
-This script will:
+This script will take a recipient GCF, donor GCF, and create ncontigs for them.
 '''
 
 # Import
 import argparse
 import random
 import re
-import subprocess
 import math
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+import pickle
 
 # any global constants here
 mingenelength=100
@@ -24,8 +24,9 @@ seed=1
 parser = argparse.ArgumentParser()
 parser.add_argument( '--recipient' )
 parser.add_argument( '--donor' )
-parser.add_argument( '--ncontigs', type=int )
-
+parser.add_argument( '--reciptaxa' )
+parser.add_argument( '--donortaxa' )
+parser.add_argument( '--ngenes' ) #I have not implemented this, but it could be a solution for generating the same donor/recip with multiple genes to see if the donor/recip pair is the problem, or not
 args = parser.parse_args()
 
 # utilities
@@ -68,15 +69,17 @@ dbog = load_bog( args.donor )
 
 # get coords
 rcoords = bog2coords( rbog )
-dcoords = bog2coords( dbog )
 
 # make a random contig
 def make1contig( dbog, rbog, rcoords):
 	
+	#random.seed(seed)
 	dgenename = random.choice(dbog.keys()) #choose a donor gene
 	rgenename = random.choice(rbog.keys()) #choose a recipient gene
 	dGI, rGI = dgenename.split(':')[0], rgenename.split(':')[0]
 	rstart, rend = getcoords(rgenename) #get coords of recipient gene
+
+	#random.seed()
 	contiglen = max(int(random.expovariate(1/float(mediancontiglen))), mincontiglen) #determine contig length
 	contigstart, contigend = rstart-contiglen/2, rstart+contiglen/2 #get start and end sites for the hybrid sequence
 	newseq = scaffolds[rGI].seq[0: rstart - 1] + dbog[dgenename].seq + scaffolds[rGI].seq[rend:]
@@ -86,50 +89,40 @@ def make1contig( dbog, rbog, rcoords):
 		contigend = len(newseq)-1
 
 	#determine if recipient genes will be in contig
-	surroundlist = []
+	surroundgenes = []
 	for start, end, genename in sorted(rcoords[rGI]):
-		#print contigstart, start, end, rstart
 		if start < contigstart and end > contigstart:
 			if end <= rstart:
-				genelen = end - start + 1
-                                #print genelen
+				genelen = end - contigstart + 1
                                 if genelen > mingenelength:
-                                        surroundlist.append([genelen, genename])
+                                        surroundgenes.append([genelen, genename, contigstart, end])
 			elif end > rstart:
-				genelen = rstart - start + 1
-                                #print genelen
+				genelen = rstart - contigstart + 1
                                 if genelen > mingenelength:
-                                        surroundlist.append([genelen, genename])
+                                        surroundgenes.append([genelen, genename, contigstart, rstart])
 		elif start >= contigstart and start <= rstart:
 			if end <= rstart:
 				genelen = end - start + 1
-				#print genelen
 				if genelen > mingenelength:
-					surroundlist.append([genelen, genename])
+					surroundgenes.append([genelen, genename, start, end])
 			elif end > rstart:
 				genelen = rstart - start + 1
-				#print genelen
 				if genelen > mingenelength:
-					surroundlist.append([genelen, genename])
+					surroundgenes.append([genelen, genename, start, rstart])
 		elif start > contigstart:
 			break
 	
 	#determine if there are any problems with detecting hgt in this contig
-	if len(surroundlist) == 0 or len(dbog[dgenename].seq) < mingenelength:
+	if len(surroundgenes) == 0 or len(dbog[dgenename].seq) < mingenelength:
 		return None
-		#if len(dbog[dgenename].seq) < mingenelength:
-		#	print 'contigfailed donor gene'
-		#else:
-		#	print contiglen, contigstart, rstart, rgenename, 'contigfailed recipient gene'
-		#	print surroundlist
 	else:
 		newcontiglen = len(newseq[contigstart:contigend])
+		# Generate the new seqRecord
 		new_SeqRec = SeqRecord(newseq[contigstart:contigend])
-        	#new_SeqRec.id = 'contig'
         	new_SeqRec.description = 'donor:' + args.donor + '|' + dgenename + '||recipient:' + args.recipient + '|' + rgenename
-        	#new_SeqRec.annotations['source'] = recipienttaxa.split('|')
-        	#new_SeqRec.annotations['taxonomy'] = donortaxa.split('|')
-        	#mynewrecords.append(new_SeqRec)
+        	new_SeqRec.annotations['source'] = args.reciptaxa
+        	new_SeqRec.annotations['taxonomy'] = args.donortaxa
+		new_SeqRec.name = surroundgenes
 		return new_SeqRec	
 	 
 	"""
@@ -142,13 +135,18 @@ def make1contig( dbog, rbog, rcoords):
 	"""
 
 # do that N times
-counter = 0
-while counter < args.ncontigs:
-	result = make1contig(dbog, rbog, rcoords)
-	if result is not None:
-		counter += 1
-		result.id = 'contig' + str(counter)
-		print result
-		print counter
+"""
+This does not work because each time, it creates only one contig. There are several issues with this:
+1. The contig counter needs to be outside of this script, and it doesn't seem to number all the contigs correctly
+2. Writing the the fasta file overwrites each previous entry. Biopython seems to only allow for writing a whole list, or writing a one sequence.
 
-# print all the sucesses to a file
+9/21/14
+Current solution is to pickle the SeqRecord and pass it back to the wrapper script.
+"""
+pickleresults = open('fastaresult', 'w')
+result = make1contig(dbog, rbog, rcoords)	
+if result is not None:
+	pickle.dump(result, pickleresults, 2)
+else:
+	#print 'noresults'
+	pickle.dump(None, pickleresults, 2)
