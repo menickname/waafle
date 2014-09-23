@@ -14,11 +14,13 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 import pickle
 
+# testing
+random.seed( 1 )
+
 # any global constants here
 mingenelength=100
 mincontiglen=300
 mediancontiglen=905
-seed=1
 
 # Define arguments
 parser = argparse.ArgumentParser()
@@ -26,8 +28,11 @@ parser.add_argument( '--recipient' )
 parser.add_argument( '--donor' )
 parser.add_argument( '--reciptaxa' )
 parser.add_argument( '--donortaxa' )
-parser.add_argument( '--ngenes' ) #I have not implemented this, but it could be a solution for generating the same donor/recip with multiple genes to see if the donor/recip pair is the problem, or not
+parser.add_argument( '--ngenes', type=int, default=1 )
+#I have not implemented this, but it could be a solution for generating the same donor/recip with multiple genes to see if the donor/recip pair is the problem, or not
 args = parser.parse_args()
+
+outname= "-".join( [args.recipient, args.donor] )
 
 # utilities
 def load_scaffolds ( GCF ):
@@ -46,7 +51,11 @@ def load_bog ( GCF ):
 
 def getcoords ( GI ):
 	""" return coordinates in sorted order """
-	coordinates = GI.split(':')[1]
+	# gi like ">bug|:1-1213,1213-154242 annotations" 
+	# first string annotation
+	# then isolate coordinates
+	# then, in rare case of ,-separate coords, take the first pair
+	coordinates = GI.split( " " )[0].split(':')[1].split( "," )[0]
 	if re.search('c', coordinates):
 		end, start = int(coordinates.split('-')[0][1:]), int(coordinates.split('-')[1])
 	else:
@@ -143,10 +152,32 @@ This does not work because each time, it creates only one contig. There are seve
 9/21/14
 Current solution is to pickle the SeqRecord and pass it back to the wrapper script.
 """
-pickleresults = open('fastaresult', 'w')
-result = make1contig(dbog, rbog, rcoords)	
-if result is not None:
-	pickle.dump(result, pickleresults, 2)
-else:
-	#print 'noresults'
-	pickle.dump(None, pickleresults, 2)
+
+fh_fnt = open( outname+".fnt", "w" )
+fh_ans = open( outname+"-ans.txt", "w" )
+
+escape_counter = 0
+successes=0
+while successes < args.ngenes:
+	escape_counter += 1
+	if escape_counter >= 25 * args.ngenes:
+		sys.exit( "got stuck in the loop!" )
+	result = make1contig(dbog, rbog, rcoords)	
+	if result is not None:
+		successes += 1
+		# write the sequence
+		contig_name = "%s|contig%05d|" % ( outname, successes )
+		print >>fh_fnt, ">"+contig_name 
+		print >>fh_fnt, str( result.seq )
+		# write the answer 
+		print >>fh_ans, "\t".join( 
+			[contig_name, 
+			 result.description, 
+			 args.reciptaxa, 
+			 args.donortaxa,
+			 #" ".join( result.name ),
+			 ] )
+
+# cleanup
+fh_fnt.close()
+fh_ans.close()
