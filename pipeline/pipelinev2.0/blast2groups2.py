@@ -32,7 +32,6 @@ for contig in dictContigHits.iterkeys():
                 if i == 0: #For the first hit, add it to a new group.
                         groupname = 'Group1'
                         dictGroupHits.setdefault(groupname, [])
-			hit.append(groupname)
 			#print contig, groupname, hit, 'first'
 			dictGroupHits[groupname].append(hit)
                 else: #For all other hit, see if it goes in any of the groups.
@@ -45,22 +44,13 @@ for contig in dictContigHits.iterkeys():
                                         counter += 1
                                 else: #If there is any overlap, calculate the %overlap.
                                         if overlap > args.hitoverlap: #Add to group if it overlaps with one, then continue to compare groups.
-						if len(hit) == 15:
-							#print 'remove'
-							hit.pop()
-							#print hit
-						hit.append(group)
-						#print contig, group, hit, len(hit), 'overlap'
 						dictGroupHits[group].append(hit)
-                                                #print group, 'append b/c overlap'
                                         else: #If they do not overlap by enough, count and continue to the next group.
                                                 counter += 1
                 if counter == len(dictGroupHits): #If we've bypassed all the groups, and none overlap or overlap by enough, add it as a new group.
                         groupnum = len(dictGroupHits) + 1
                         groupname = 'Group' + str(groupnum)
                         dictGroupHits.setdefault(groupname, [])
-			hit.append(groupname)
-			#print contig, groupname, hit, 'lastchance'
                         dictGroupHits[groupname].append(hit)
 	ddictContigGroupHits[contig] = dictGroupHits
 
@@ -91,7 +81,7 @@ for contig in dictContigGroupSorted.keys(): #Continue by deciding in whether eac
                                 grouplist.append(currgroup)
                 prevstart, prevend = currstart, currend #Assign the current groups as previous groups, so that we can continue comparisons
 
-        #With the newly ordered groups, create a new dictionary that has the correct group names
+        #With the newly ordered groups, create a new dictionary. These still use the 'oldnames' that may be out of order. 
         dictGroupHits2 = {}
         for names in grouplist:
 		if len(names.split(',')) == 1:
@@ -104,8 +94,7 @@ for contig in dictContigGroupSorted.keys(): #Continue by deciding in whether eac
                         newHits = [] #Put all the revised hits into a list
                         for l in range(len(names.split(','))): #Get all the hits for the groups to be merged
                                 hits = ddictContigGroupHits[contig][names.split(',')[l]]
-                                for m in range(len(hits)):
-                                        hits[m][14] = mergednewname
+				for m in range(len(hits)):
 					newHits.append(hits[m])
                         dictGroupHits2[mergednewname] = newHits
         mod_ddictContigGroupHits[contig] = dictGroupHits2 #Create the new final dictionary
@@ -115,7 +104,6 @@ mod_ddict_sorted = hgtmodules.sortGroups(mod_ddictContigGroupHits)
 for contig in mod_ddict_sorted.iterkeys():
 	cnt = 0
 	for n in range(len(mod_ddict_sorted[contig])):
-		#print contig, mod_ddict_sorted[contig]
 		info = mod_ddict_sorted[contig][n]	
 		groupname, start, end = info[0], info[1], info[2]
 		contiglen = float(end) - float(start) + 1
@@ -126,5 +114,5 @@ for contig in mod_ddict_sorted.iterkeys():
 			#print contig, newgroupname, start, end #Use this to see how many groups there are, and their lengths
 			for o in range(len(mod_ddictContigGroupHits[contig][groupname])):
 				hit = mod_ddictContigGroupHits[contig][groupname][o]
-				hit[14] = newgroupname
+				hit.append(newgroupname)
 				print '\t'.join(str(hit[p]) for p in range(len(hit)))

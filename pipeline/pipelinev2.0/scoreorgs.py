@@ -12,15 +12,21 @@ This code will:
 import argparse
 import hgtmodules
 import re
-import json
+from Bio import SeqIO
 
 #Define arguments
 parser = argparse.ArgumentParser()
+parser.add_argument('--fasta', help = 'Location and file of contig fasta file.')
 parser.add_argument('--blastoutput', help = 'Location and file of grouped and length-filtered BLAST output.')
 parser.add_argument('--taxa', help = "Determine what taxonomy level to do this at; it should be one of the letters: 'k', 'p', 'c', 'o', 'f', 'g', 's'")
-#parser.add_argument('delta', type = float, help = 'Determine the higher threshold score. Those above this score are high confidence BLAST hits')
+parser.add_argument('--delta', type = float, help = 'Determine the higher threshold score. Those above this score are high confidence BLAST hits')
 #parser.add_argument('epsilon', type = float, help = 'Determine the lower threshold score. Those below this score are low confidence BLAST hits')
 args = parser.parse_args()
+
+#Create a dictionary consisting of contig total lengths.
+dictContigLength = {}
+for seq_record in SeqIO.parse(args.fasta, "fasta"):
+         dictContigLength[seq_record.id] = len(seq_record.seq)
 
 #Organize BLAST output into dictionaries
 dictContigHits = hgtmodules.contigHits(open(args.blastoutput)) #Dictionary of {contig: [hits]}
@@ -30,13 +36,13 @@ ddictContigGroupHits = hgtmodules.contigGroupHits(dictContigHits) #Dictionary of
 dictContigGroupOrder = hgtmodules.sortGroups(ddictContigGroupHits)
 ddictContigGroupLen = {}
 for contig in dictContigGroupOrder.iterkeys():
-	dictGroupLen = {}
-	for i in range(len(dictContigGroupOrder[contig])):
-		info = dictContigGroupOrder[contig][i]
-		group, start, end = info[0], info[1], info[2]
-		grouplen = end - start + 1
-		dictGroupLen[group] = grouplen
-	ddictContigGroupLen[contig] = dictGroupLen
+        dictGroupLen = {}
+        for i in range(len(dictContigGroupOrder[contig])):
+                info = dictContigGroupOrder[contig][i]
+                group, start, end = info[0], info[1], info[2]
+                grouplen = end - start + 1
+                dictGroupLen[group] = grouplen
+        ddictContigGroupLen[contig] = dictGroupLen
 
 #Generate 3-tiered dictionary which scores organisms within each group
 dddictContigOrgGroupHits = {}
@@ -93,59 +99,58 @@ for contig in dddictContigGroupOrgHits.iterkeys():
 			finalgroupcov = combhitlen/float(ddictContigGroupLen[contig][group])
 			finalscore = finalpercID*finalgroupcov
 			newstart, newend = sorted(dictIndexScore.keys())[0], sorted(dictIndexScore.keys())[combhitlen - 1]
-		
+			contigcov = combhitlen/float(dictContigLength[contig])
+
 			#Add to dictionaries
-			dictOrgScores[org] = [finalscore, finalgroupcov, finalpercID, newstart, newend, combhitlen]
-			dictGroupScores[group] = [finalscore, finalgroupcov, finalpercID, newstart, newend, combhitlen]
+			dictOrgScores[org] = [finalscore, finalpercID, finalgroupcov, contigcov, newstart, newend, combhitlen, ddictContigGroupLen[contig][group], dictContigLength[contig]]
+			dictGroupScores[group] = [finalscore, finalpercID, finalgroupcov, contigcov, newstart, newend, combhitlen, ddictContigGroupLen[contig][group], dictContigLength[contig]]
 			ddictOrgGroupScores[org] = dictGroupScores
 		ddictGroupOrgScores[group] = dictOrgScores
 	dddictContigOrgGroupScores[contig] = ddictOrgGroupScores
 	dddictContigGroupOrgScores[contig] = ddictGroupOrgScores
 
 #Determine which contigs are:
-#1) One gene only 2) Explained by one organism at high confidence
-for contig in dddictContigGroupOrgScores.iterkeys():
+#1) One organism only 2) Multiple organisms across the whole contig 3) Potential LGT
+all_contigset = set(dddictContigOrgGroupScores.keys())
+oneorg_contigset = set()
+highconforg_contigset = set()
+lgt_contigset = set()
+
+for contig in dictContigGroupOrder.iterkeys(): 
 	totalgroups = len(dddictContigGroupOrgScores[contig].keys())
 	totalorgs = len(dddictContigOrgGroupScores[contig].keys())
-	if totalgroups == 1: #These are contigs with only 1 group, which could have multiple taxon annotations
-		print contig, hgtmodules.scoreOrgs(dddictContigOrgGroupScores, ddictContigGroupLen, contig)
-		for org in dddictContigGroupOrgScores[contig]['Group1'].iterkeys():
-			print contig, org, ' '.join(str(dddictContigGroupOrgScores[contig]['Group1'][org][i]) for i in range(len(dddictContigGroupOrgScores[contig]['Group1'][org]))), '1GroupOnly'
-			#pass
-	#else:
-		#if totalorgs == 1: #These are contigs explained by 1 taxon, or strongly explained by at least 1 taxa across all genes.
-			#print contig, hgtmodules.scoreOrgs(dddictContigOrgGroupScores, ddictContigGroupLen, contig)
-			
-		'''
-			sumscore_len = 0
-			totallen = 0
-			for org in dddictContigOrgGroupScores[contig].iterkeys():
-				numgroups = len(dddictContigOrgGroupScores[contig][org].keys())
-				for group in dddictContigOrgGroupScores[contig][org].iterkeys():
-					info = dddictContigOrgGroupScores[contig][org][group]
-					sumscore_len += info[0]*info[5]
-					totallen += info[5]
-				score_groups = sumscore_len/float(totallen)
-				print contig, org, score_groups
-					
+	if totalorgs == 1: #These are contigs with only 1 organism explanation, which could have multiple taxon annotations
+		for i in range(len(dictContigGroupOrder[contig])):
+			group = dictContigGroupOrder[contig][i][0]
+			for org in dddictContigGroupOrgScores[contig][group].keys():
+				oneorg_contigset.add(contig)
+				#print contig#, group, org, ' '.join(str(j) for j in dddictContigGroupOrgScores[contig][group][org]), '1orgonly'
+	else:
+		#Determine which contigs are explained fully by 1 or more organisms at high confidence
+		for org in dddictContigOrgGroupScores[contig].keys():
+			scorelist = []
+			for group in dddictContigOrgGroupScores[contig][org].keys():
+				score = dddictContigOrgGroupScores[contig][org][group][0]
+				if score >= args.delta:
+					scorelist.append(score) 
+			if len(scorelist) == totalgroups:
+				#print contig, org
+				#print dddictContigOrgGroupScores[contig][org].keys()
+				#print dddictContigGroupOrgScores[contig].keys()
+				highconforg_contigset.add(contig)
 
-			
-			pass
-		else:
-			for org in dddictContigOrgGroupScores[contig].iterkeys(): 
-				count = 0
-				if totalgroups == len(dddictContigOrgGroupScores[contig][org].keys()):
-					for group in dddictContigOrgGroupScores[contig][org].iterkeys():
-						score = dddictContigOrgGroupScores[contig][org][group]
-						if score > 0.75:
-							count += 1
-				if totalgroups == count:
-					#print contig, org, totalgroups, count
-					pass
-'''				
-#This is for printing out information for R
-#for contig in dddictOrgGroupScore.keys():
-#	for org in dddictOrgGroupScore[contig].keys():
-#		for group in dddictOrgGroupScore[contig][org].keys():
-#			score = dddictOrgGroupScore[contig][org][group]
-#			print contig, org, group, score[0], score[1]
+#Print out the contigs which are explained at high confidence fully by 1 or more organisms
+for contig in dictContigGroupOrder.iterkeys():
+	if contig in highconforg_contigset:
+		for i in range(len(dictContigGroupOrder[contig])):
+			group = dictContigGroupOrder[contig][i][0]
+			for org in dddictContigGroupOrgScores[contig][group].keys():
+				pass #print contig, group, org, ' '.join(str(j) for j in dddictContigGroupOrgScores[contig][group][org]), '1+orghigh'
+
+#Annotate remainder as potential LGT.
+lgt_contigset = all_contigset - (oneorg_contigset | highconforg_contigset)
+print len(lgt_contigset), 'potentialLGT'
+print len(oneorg_contigset), 'oneorg'
+print len(highconforg_contigset), 'highconforg'
+print len(all_contigset), 'allcontigs'
+
