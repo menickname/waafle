@@ -24,11 +24,11 @@ mediancontiglen=905
 
 # Define arguments
 parser = argparse.ArgumentParser()
-parser.add_argument( '--recipient' )
-parser.add_argument( '--donor' )
-parser.add_argument( '--reciptaxa' )
-parser.add_argument( '--donortaxa' )
-parser.add_argument( '--ngenes', type=int, default=1 )
+parser.add_argument( '--recipient', help='This is the recipient GCF number.' )
+parser.add_argument( '--donor', help='This is the donor GCF number.' )
+parser.add_argument( '--reciptaxa', help='This is the complete recipient taxonomy.' )
+parser.add_argument( '--donortaxa', help='This is the complete donor taxonomy.' )
+parser.add_argument( '--ngenes', type=int, default=1, help='This is the number of contigs we would like to generate for this donor-recipient pair.')
 #I have not implemented this, but it could be a solution for generating the same donor/recip with multiple genes to see if the donor/recip pair is the problem, or not
 args = parser.parse_args()
 
