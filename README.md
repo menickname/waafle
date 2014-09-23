@@ -23,6 +23,7 @@ Usage
 Currently, there are 2 sets of scripts for the actual pipeline, and the
 validation pipeline.
 
+###Current Pipeline
 The actual pipeline is located in the 'pipeline' folder. It consists of
 several steps:
 
@@ -53,6 +54,8 @@ $ python scoreorgs.py --fasta contigs.fasta --blastoutput groupedcombhits.out --
 ```
 $ python aggregatebylen_matchsets.py dddictOrgGroupScore.json dddictGroupOrgScore.json 0.75 0.25 100
 ```
+
+###Validation Pipeline
 
 The validation pipeline is located in the 'fakecontigs' folder. It consists of several steps:
 
