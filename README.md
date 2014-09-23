@@ -1,5 +1,5 @@
 WAAFLE
-######
+===================== 
 *Widget to Annotate Assemblies and Find LGT Events*
 
 Last updated on Sept 23 2014.
@@ -8,10 +8,7 @@ Authors: Tiffany Hsu and Eric Franzosa
 Huttenhower Lab, Harvard School of Public Health,
 Boston, MA
 
-.. Contents::
-
 -----------------------------------------------------
-
 Overview
 =======
 WAAFLE is a tool that will take metagenomic shotgun reads, assemble them into
@@ -28,9 +25,8 @@ validation pipeline.
 
 The actual pipeline is located in the 'pipeline' folder. It consists of
 several steps:
-1. BLAST the contigs against the new Repophlan database.
-
-2. 
+1. BLAST
+1. 
 
 The validation pipeline is located in the 'fakecontigs' folder. It consists of several steps:
 1. Generate a list of donor-recipient pairs at 5 different phylogenetic
@@ -51,4 +47,4 @@ into fakemake.py, and outputs a fasta file and
 answer key.  
 ```
 $ python run.py donorreciplist.txt
-``` 
+```
