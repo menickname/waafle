@@ -53,7 +53,7 @@ $ python scoreorgs.py --fasta contigs.fasta --blastoutput groupedcombhits.out --
 
 5. Detect which organisms are likely to have LGT by picking contigs with >=2 organisms with high to low drops in scores. Determine how many organisms it takes to explain the entire contig. 
 ```
-$ python detectlgt.py --dict1 dddictCOGS_g.json dddictCGOS.json --delta 0.75 --epsilon 0.25 
+$ python detectlgt.py --dict1 dddictCOGS_g.json dddictCGOS.json --delta 0.75 --epsilon 0.25 > hgt_g.txt
 ```
 
 ###Validation Pipeline
@@ -78,4 +78,9 @@ into fakemake.py, and outputs a fasta file and
 answer key.  
 ```
 $ python run.py donorreciplist.txt
+```
+
+4. Compare the answerkey and hgt results/gene table from the pipeline.
+```
+python callposneg.py --taxa g --answerkey answerkey.txt --genetable -genetableg.txt --hgtresults hgt_g.txt 
 ```
