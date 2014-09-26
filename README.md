@@ -51,9 +51,9 @@ $ python blast2groups2.py --blastoutput blastn.sorted --hitoverlap 0.5 --groupov
 $ python scoreorgs.py --fasta contigs.fasta --blastoutput groupedcombhits.out --taxa g --delta 0.75
 ```
 
-5. Detect which organisms are likely to have LGT by picking contigs with >=2 organisms with high to low drops in scores. This is currently being revised.
+5. Detect which organisms are likely to have LGT by picking contigs with >=2 organisms with high to low drops in scores. Determine how many organisms it takes to explain the entire contig. 
 ```
-$ python aggregatebylen_matchsets.py dddictOrgGroupScore.json dddictGroupOrgScore.json 0.75 0.25 100
+$ python detectlgt.py --dict1 dddictCOGS_g.json dddictCGOS.json --delta 0.75 --epsilon 0.25 
 ```
 
 ###Validation Pipeline
