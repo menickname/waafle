@@ -18,7 +18,7 @@ parser.add_argument('--hgtresults', help='Location and file for LGT results')
 args = parser.parse_args()
 
 #Set taxalevels
-leveldiff = ['t', 's', 'g', 'f', 'o', 'c', 'p']
+leveldiff = ['t', 's', 'g', 'f', 'o', 'c', 'p', 'k']
 levelnum = leveldiff.index(args.taxa)
 
 #Read in answerkey
@@ -32,20 +32,21 @@ for astrline in open(args.answerkey):
 	for i in range(len(splitreciptaxa)):
 		if splitreciptaxa[i] == splitdonortaxa[i] and i == len(splitreciptaxa)-1:
 			dictanswerkey[contigname] = ['noLGT', donortaxa, reciptaxa]
-			print contigname, 'noLGT'
+			#print contigname, 'noLGT'
 		elif splitreciptaxa[i] != splitdonortaxa[i]:
-			#print contigname, splitreciptaxa[i], splitdonortaxa[i]
 			taxadiff = re.search('.+__', splitreciptaxa[i]).group()[0]
 			currlevelnum = leveldiff.index(taxadiff)
 			if currlevelnum >= levelnum:
 				dictanswerkey[contigname] = ['LGT', donortaxa, reciptaxa]
-				print contigname, 'LGT'
+				#print contigname, 'yesLGT'
 			else:
 				dictanswerkey[contigname] = ['noLGT', donortaxa, reciptaxa]
-				print contigname, 'noLGT'
+				#print contigname, 'noLGT'
 			break
 
-"""
+#for contig in dictanswerkey.keys():
+#	print contig, dictanswerkey[contig][0]
+
 highconfLGT = open(args.hgtresults).readlines()
 highconfLGTlist = []
 for i in range(len(highconfLGT)):
@@ -61,16 +62,17 @@ for bstrline in open(args.genetable):
 	if status == '1orgonly':
 		answer_status = dictanswerkey[contigname][0]
 		if answer_status == 'noLGT':
-			print contigname, 'TN' #Supposed to be noLGT, and algorithm gave 1orgonly
+			print contigname, 'TN-1orgonly' #Supposed to be noLGT, and algorithm gave 1orgonly
 		else:
-			print contigname, 'FN' #Supposed to be LGT, and algorithm gave 1orgonly
+			print contigname, 'FN-1orgonly' #Supposed to be LGT, and algorithm gave 1orgonly
 	elif status == '1+orghigh':
 		answer_status = dictanswerkey[contigname][0]
 		if answer_status == 'noLGT':
-			print contigname, 'TN' #Supposed to be noLGT, and algorithm gave 1+orghigh
+			print contigname, 'TN-1+orghigh' #Supposed to be noLGT, and algorithm gave 1+orghigh
 		else:
-			print contigname, 'FN' #Supposed to be LGT, and algorithm gave 1+orghigh
+			print contigname, 'FN-1+orghigh' #Supposed to be LGT, and algorithm gave 1+orghigh
 	elif status == 'potentialLGT':
+		answer_status = dictanswerkey[contigname][0]
 		if contigname in highconfLGTlist:
 			print contigname, 'TP'
 		else:
@@ -78,21 +80,4 @@ for bstrline in open(args.genetable):
 				print contigname, 'FP'  #Supposed to be noLGT, but called LGT
 			else:
 				print contigname, 'FP-notreally'
-"""
-"""
-#Read in answers from hgt results
-for cstrline in open(args.hgtresults):
-	ccstrline = cstrline.strip().split(' ')
-	contigname, order, status, completecoverage = ccstrline[0], ccstrline[1], ccstrline[2], ccstrline[3]
-	answer_status = dictanswerkey[contigname][0]
-	if answer_status == 'LGT': 
-		print contigname, 'TP', status #Supposed to be LGT, and algorithm gave LGT
-	else:
-		print contigname, 'FP', status
-	#	for bstrline in open(args.genetable):
-	#		bbstrline = bstrline.strip().split(' ')
-	#		contigname, status = bbstrline[0], bbstrline[12]
-	#		if status == 'potentialLGT':
-	#			print contigname, 'FN', 'notdetected_highconf' #Supposed to be no LGT, and algorithm gave LGT
-"""	
 
