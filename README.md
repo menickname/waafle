@@ -4,7 +4,7 @@ WAAFLE
 
 Last updated on Sept 23 2014.
 
-Authors: Tiffany Hsu and Eric Franzosa
+Authors: Tiffany Hsu and Eric A. Franzosa
 
 Huttenhower Lab, Harvard School of Public Health,
 Boston, MA
