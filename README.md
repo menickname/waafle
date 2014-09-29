@@ -1,8 +1,8 @@
 WAAFLE
-===================== 
+====================
 *Widget to Annotate Assemblies and Find LGT Events*
 
-Last updated on Sept 29 2014.
+Last updated on Sept 29, 2014.
 
 Authors: Tiffany Hsu and Eric A. Franzosa
 
