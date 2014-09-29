@@ -132,6 +132,7 @@ def make1contig( dbog, rbog, rcoords):
         	new_SeqRec.annotations['source'] = args.reciptaxa
         	new_SeqRec.annotations['taxonomy'] = args.donortaxa
 		new_SeqRec.name = surroundgenes
+		#print new_SeqRec.name
 		return new_SeqRec	
 	 
 	"""
@@ -170,13 +171,14 @@ while successes < args.ngenes:
 		print >>fh_fnt, ">"+contig_name 
 		print >>fh_fnt, str( result.seq )
 		# write the answer 
+		
 		print >>fh_ans, "\t".join( 
 			[contig_name, 
 			 result.description, 
 			 args.reciptaxa, 
 			 args.donortaxa,
-			 #" ".join( result.name ),
-			 ] )
+			 str(result.name),]
+			  )
 
 # cleanup
 fh_fnt.close()

@@ -13,6 +13,7 @@ import argparse
 import hgtmodules
 import re
 from Bio import SeqIO
+import json
 
 #Define arguments
 parser = argparse.ArgumentParser()
@@ -68,9 +69,9 @@ dddictContigGroupOrgScores = {}
 for contig in dddictContigGroupOrgHits.iterkeys():
 	ddictGroupOrgScores = {}
 	ddictOrgGroupScores = {}
-	dictGroupScores = {}
 	for group in dddictContigGroupOrgHits[contig].iterkeys():
 		dictOrgScores = {}
+		dictGroupScores = {}
 		for org in dddictContigGroupOrgHits[contig][group].iterkeys():
 			dictIndexScore = {}
 			for hit in dddictContigGroupOrgHits[contig][group][org]:
@@ -104,7 +105,7 @@ for contig in dddictContigGroupOrgHits.iterkeys():
 			#Add to dictionaries
 			dictOrgScores[org] = [finalscore, finalpercID, finalgroupcov, contigcov, newstart, newend, combhitlen, ddictContigGroupLen[contig][group], dictContigLength[contig]]
 			dictGroupScores[group] = [finalscore, finalpercID, finalgroupcov, contigcov, newstart, newend, combhitlen, ddictContigGroupLen[contig][group], dictContigLength[contig]]
-			ddictOrgGroupScores[org] = dictGroupScores
+			ddictOrgGroupScores.setdefault(org, {}).update(dictGroupScores)
 		ddictGroupOrgScores[group] = dictOrgScores
 	dddictContigOrgGroupScores[contig] = ddictOrgGroupScores
 	dddictContigGroupOrgScores[contig] = ddictGroupOrgScores
@@ -116,6 +117,10 @@ oneorg_contigset = set()
 highconforg_contigset = set()
 lgt_contigset = set()
 
+genetable = open('genetable' + args.taxa + '.txt', 'w')
+header = ['contigname', 'groupnum', 'taxa', 'finalscore', 'finalpercID', 'finalgroupcov', 'contigcov', 'start', 'end', 'combhitlen', 'grouplen', 'contiglen']
+genetable.write(' '.join(header) + '\n')
+
 for contig in dictContigGroupOrder.iterkeys(): 
 	totalgroups = len(dddictContigGroupOrgScores[contig].keys())
 	totalorgs = len(dddictContigOrgGroupScores[contig].keys())
@@ -124,7 +129,8 @@ for contig in dictContigGroupOrder.iterkeys():
 			group = dictContigGroupOrder[contig][i][0]
 			for org in dddictContigGroupOrgScores[contig][group].keys():
 				oneorg_contigset.add(contig)
-				#print contig#, group, org, ' '.join(str(j) for j in dddictContigGroupOrgScores[contig][group][org]), '1orgonly'
+				newinfo = [contig, group, org, ' '.join(str(j) for j in dddictContigGroupOrgScores[contig][group][org]), '1orgonly', '\n']
+				genetable.write(' '.join(newinfo))
 	else:
 		#Determine which contigs are explained fully by 1 or more organisms at high confidence
 		for org in dddictContigOrgGroupScores[contig].keys():
@@ -145,12 +151,29 @@ for contig in dictContigGroupOrder.iterkeys():
 		for i in range(len(dictContigGroupOrder[contig])):
 			group = dictContigGroupOrder[contig][i][0]
 			for org in dddictContigGroupOrgScores[contig][group].keys():
-				pass #print contig, group, org, ' '.join(str(j) for j in dddictContigGroupOrgScores[contig][group][org]), '1+orghigh'
+				newinfo = [contig, group, org, ' '.join(str(j) for j in dddictContigGroupOrgScores[contig][group][org]), '1+orghigh', '\n']
+				genetable.write(' '.join(newinfo))
 
 #Annotate remainder as potential LGT.
 lgt_contigset = all_contigset - (oneorg_contigset | highconforg_contigset)
-print len(lgt_contigset), 'potentialLGT'
-print len(oneorg_contigset), 'oneorg'
-print len(highconforg_contigset), 'highconforg'
-print len(all_contigset), 'allcontigs'
+dddictCOGS = {}
+dddictCGOS = {}
+for contig in lgt_contigset:
+	dddictCOGS[contig] = dddictContigOrgGroupScores[contig]
+	dddictCGOS[contig] = dddictContigGroupOrgScores[contig]
+	for i in range(len(dictContigGroupOrder[contig])):
+		group = dictContigGroupOrder[contig][i][0]
+		for org in dddictContigGroupOrgScores[contig][group].keys():
+			newinfo = [contig, group, org, ' '.join(str(j) for j in dddictContigGroupOrgScores[contig][group][org]), 'potentialLGT', '\n']
+			genetable.write(' '.join(newinfo))
 
+genetable.close()
+
+#This is a temporary fix so I can use the old code to detect LGT
+filename = 'dddictCOGS_' + args.taxa + '.json'
+with open(filename, "w") as outfile:
+        json.dump(dddictCOGS, outfile)
+
+filename2 = 'dddictCGOS_' + args.taxa + '.json'
+with open(filename2, "w") as outfile2:
+	json.dump(dddictCGOS, outfile2)

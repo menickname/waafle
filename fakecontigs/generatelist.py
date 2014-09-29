@@ -65,4 +65,5 @@ while len(cnt.keys()) < 5:
 			cnt[taxadiff] += 1
 			donorGCFlist.append(donorGCF)
 			newline = '\t'.join(newlist)
-			print newline
+			if len(cnt.keys()) < 5:
+				print newline

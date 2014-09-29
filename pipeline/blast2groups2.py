@@ -100,7 +100,7 @@ for contig in dictContigGroupSorted.keys(): #Continue by deciding in whether eac
         mod_ddictContigGroupHits[contig] = dictGroupHits2 #Create the new final dictionary
 
 #Remove groups that are below the length threshold
-mod_ddict_sorted = hgtmodules.sortGroups(mod_ddictContigGroupHits)	
+mod_ddict_sorted = hgtmodules.sortGroups(mod_ddictContigGroupHits)
 for contig in mod_ddict_sorted.iterkeys():
 	cnt = 0
 	for n in range(len(mod_ddict_sorted[contig])):
