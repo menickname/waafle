@@ -53,7 +53,25 @@ $ python scoreorgs.py --fasta contigs.fasta --blastoutput groupedcombhits.out --
 
 5. Detect which organisms are likely to have LGT by picking contigs with >=2 organisms with high to low drops in scores. This is currently being revised.
 ```
-$ python aggregatebylen_matchsets.py dddictOrgGroupScore.json dddictGroupOrgScore.json 0.75 0.25 100
+$ python detectlgt.py --dict1 dddictCOGS_g.json --dict2 dddictCGOS_g.json --delta 0.75 --epsilon 0.25
+```
+
+The above have now been linked into one python script runpipeline.py.
+```
+usage: runpipeline.py [-h] [--delta DELTA] [--epsilon EPSILON]
+                      [--length LENGTH] [--taxa TAXA]
+                      [--hitoverlap HITOVERLAP] [--groupoverlap GROUPOVERLAP]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --delta DELTA         Upper threshold for calling high confidence BLAST hits
+  --epsilon EPSILON     Lower threshold for calling low confidence BLAST hits
+  --length LENGTH       Length of groups to exclude.
+  --taxa TAXA           Taxa level to detect LGT at.
+  --hitoverlap HITOVERLAP
+                        Amount hits should overlap to join a group.
+  --groupoverlap GROUPOVERLAP
+                        Amount groups should overlap to merge.
 ```
 
 ###Validation Pipeline
