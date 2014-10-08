@@ -29,9 +29,9 @@ for astrline in open(args.answerkey):
 	contigname, donorrecipinfo, donortaxa, reciptaxa = aastrline[0], aastrline[1], aastrline[2], aastrline[3]
 	taxadiff, contiglen, numgenes  = aastrline[4], aastrline[5], aastrline[6]
 	if leveldiff.index(taxadiff) >= leveldiff.index(args.taxa):
-		dictanswerkey[contigname] = ['LGT', aastrline]
+		dictanswerkey[contigname] = ['LGT', donortaxa, reciptaxa]
 	elif leveldiff.index(taxadiff) < leveldiff.index(args.taxa):
-		dictanswerkey[contigname] = ['noLGT', aastrline]
+		dictanswerkey[contigname] = ['noLGT', donortaxa, reciptaxa]
 
 #This tells me how many P and N from the answerkey
 truepositives = 0
@@ -50,12 +50,23 @@ FPcount = 0
 highconfLGT = open(args.hgtresults).readlines()
 for i in range(len(highconfLGT)):
 	contigname = highconfLGT[i].split(' ')[0]
-	if dictanswerkey[contigname][0] == 'LGT':
+	orgset = set(highconfLGT[i].split('[')[0].strip().split(' ')[4:])
+	answer_status = dictanswerkey[contigname][0]
+	answer_orgset = set([dictanswerkey[contigname][1], dictanswerkey[contigname][2]])
+	answerabbr_orgset = set()
+	for org in answer_orgset:
+		searchstring = '.*' + args.taxa + '__\w*'
+		neworg = re.search(searchstring, org).group()
+		neworg2 = neworg.replace('|', '.')
+		answerabbr_orgset.add(neworg2)
+	numdiff = len(orgset - answerabbr_orgset)
+	orgset_diff = orgset-answerabbr_orgset
+	if answer_status == 'LGT' and numdiff == 0:
 		TPcount += 1
 		pipelineP.append(contigname)
 	else:
 		FPcount += 1
-		falsecontigs.write(contigname + '\t' + 'FP' + '\n')
+		falsecontigs.write(contigname + '\t' + 'FP' + '\t' + answer_status + '\t' + str(len(orgset)) + '\t' + str(numdiff) + '\t' + str(orgset_diff) + '\n')
 		pipelineP.append(contigname)
 pipelinepositives = len(pipelineP)
 
@@ -73,9 +84,11 @@ TNcount = 0
 FNcount = 0
 pipelinenegatives = 0
 for contigstatus in pipelineN:
+	print contigstatus
 	contigname, status = contigstatus.split(':')[0], contigstatus.split(':')[1]
 	if status == '1orgonly':
 		answer_status = dictanswerkey[contigname][0]
+		answer_orgset = set([dictanswerkey[contigname][1], dictanswerkey[contigname][2]])
 		if answer_status == 'noLGT':
 			TNcount += 1
 			pipelinenegatives += 1
