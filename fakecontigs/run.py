@@ -13,6 +13,7 @@ for line in open( sys.argv[1] ):
         "--recipient", items[2], 
         "--donortaxa", items[3], 
         "--reciptaxa", items[4],
+	"--taxadiff", items[0],
         "--ngenes", "10",
         ]
     os.system( " ".join( command ) )

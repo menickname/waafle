@@ -118,8 +118,6 @@ highconforg_contigset = set()
 lgt_contigset = set()
 
 genetable = open('genetable' + args.taxa + '.txt', 'w')
-header = ['contigname', 'groupnum', 'taxa', 'finalscore', 'finalpercID', 'finalgroupcov', 'contigcov', 'start', 'end', 'combhitlen', 'grouplen', 'contiglen']
-genetable.write(' '.join(header) + '\n')
 
 for contig in dictContigGroupOrder.iterkeys(): 
 	totalgroups = len(dddictContigGroupOrgScores[contig].keys())

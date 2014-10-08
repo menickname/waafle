@@ -99,6 +99,7 @@ for contig in dictContigGroupSorted.keys(): #Continue by deciding in whether eac
                         dictGroupHits2[mergednewname] = newHits
         mod_ddictContigGroupHits[contig] = dictGroupHits2 #Create the new final dictionary
 
+contiggroupcoords = open('contiggroupcoord.txt', 'w')
 #Remove groups that are below the length threshold
 mod_ddict_sorted = hgtmodules.sortGroups(mod_ddictContigGroupHits)
 for contig in mod_ddict_sorted.iterkeys():
@@ -111,8 +112,11 @@ for contig in mod_ddict_sorted.iterkeys():
 			cnt += 1	
 			#Renumber and print out the new group names
 			newgroupname = 'Group' + str(cnt)
+			contiggroupcoords.write(contig + '\t' + newgroupname + '\t' + str(start) + '\t' + str(end) + '\n')
 			#print contig, newgroupname, start, end #Use this to see how many groups there are, and their lengths
 			for o in range(len(mod_ddictContigGroupHits[contig][groupname])):
 				hit = mod_ddictContigGroupHits[contig][groupname][o]
 				hit.append(newgroupname)
 				print '\t'.join(str(hit[p]) for p in range(len(hit)))
+
+contiggroupcoords.close()

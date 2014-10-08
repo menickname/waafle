@@ -28,6 +28,7 @@ parser.add_argument( '--recipient', help='This is the recipient GCF number.' )
 parser.add_argument( '--donor', help='This is the donor GCF number.' )
 parser.add_argument( '--reciptaxa', help='This is the complete recipient taxonomy.' )
 parser.add_argument( '--donortaxa', help='This is the complete donor taxonomy.' )
+parser.add_argument( '--taxadiff', help='This is the phylogenetic difference between the 2.')
 parser.add_argument( '--ngenes', type=int, default=1, help='This is the number of contigs we would like to generate for this donor-recipient pair.')
 #I have not implemented this, but it could be a solution for generating the same donor/recip with multiple genes to see if the donor/recip pair is the problem, or not
 args = parser.parse_args()
@@ -96,43 +97,62 @@ def make1contig( dbog, rbog, rcoords):
 		contigstart = 0
 	if contigend > len(newseq):
 		contigend = len(newseq)-1
-
 	#determine if recipient genes will be in contig
 	surroundgenes = []
 	for start, end, genename in sorted(rcoords[rGI]):
+		# These should be calculated, since we will always have rgenes on the left side
 		if start < contigstart and end > contigstart:
 			if end <= rstart:
 				genelen = end - contigstart + 1
                                 if genelen > mingenelength:
-                                        surroundgenes.append([genelen, genename, contigstart, end])
+                                        surroundgenes.append(["R", genelen, genename, contigstart, end, 0, genelen-1])
 			elif end > rstart:
 				genelen = rstart - contigstart + 1
                                 if genelen > mingenelength:
-                                        surroundgenes.append([genelen, genename, contigstart, rstart])
+                                        surroundgenes.append(["R", genelen, genename, contigstart, rstart, 0, genelen-1])
 		elif start >= contigstart and start <= rstart:
 			if end <= rstart:
 				genelen = end - start + 1
 				if genelen > mingenelength:
-					surroundgenes.append([genelen, genename, start, end])
+					surroundgenes.append(["R", genelen, genename, start, end, start-contigstart, start-contigstart+genelen-1])
 			elif end > rstart:
 				genelen = rstart - start + 1
 				if genelen > mingenelength:
-					surroundgenes.append([genelen, genename, start, rstart])
-		elif start > contigstart:
+					surroundgenes.append(["R", genelen, genename, start, rstart, start-contigstart, start-contigstart+genelen-1])
+		#These should be on the other side of the donor gene
+		leftover = contiglen/2 - len(dbog[dgenename].seq)
+		rcontigend = leftover + rend
+		if leftover > 0:
+			if start >= rend and start <= rcontigend:
+				if end <= rcontigend:
+					genelen = end - start + 1
+					if genelen > mingenelength:
+						surroundgenes.append(["Rafter", genelen, genename, start, end, rstart-contigstart+len(dbog[dgenename].seq)+start-rend, rstart-contigstart+len(dbog[dgenename].seq)+start-rend+genelen])
+				elif end > rcontigend:
+					genelen = rcontigend - start + 1
+					if genelen > mingenelength:
+						surroundgenes.append(["Rafter", genelen, genename, start, rcontigend, rstart-contigstart+len(dbog[dgenename].seq)+start-rend, rstart-contigstart+len(dbog[dgenename].seq)+start-rend+genelen])
+		if leftover < 0 and start > rstart:
+			break
+		elif leftover > 0 and start > rend + leftover:
 			break
 	
 	#determine if there are any problems with detecting hgt in this contig
-	if len(surroundgenes) == 0 or len(dbog[dgenename].seq) < mingenelength:
+	if len(surroundgenes) == 0 or len(dbog[dgenename].seq[0:contiglen/2]) < mingenelength:
 		return None
 	else:
+		leftover = contiglen/2 - len(dbog[dgenename].seq)
+		if leftover < 0:
+			surroundgenes.append(["D", len(dbog[dgenename].seq[0:contiglen/2]), dgenename, 0, contiglen/2, rstart-contigstart, rstart-contigstart+contiglen/2])
+		else:
+			surroundgenes.append(["D", len(dbog[dgenename].seq), dgenename, 0, len(dbog[dgenename].seq), rstart-contigstart, rstart-contigstart+len(dbog[dgenename].seq)])
 		newcontiglen = len(newseq[contigstart:contigend])
 		# Generate the new seqRecord
 		new_SeqRec = SeqRecord(newseq[contigstart:contigend])
+		new_SeqRec.features = surroundgenes
         	new_SeqRec.description = 'donor:' + args.donor + '|' + dgenename + '||recipient:' + args.recipient + '|' + rgenename
         	new_SeqRec.annotations['source'] = args.reciptaxa
         	new_SeqRec.annotations['taxonomy'] = args.donortaxa
-		new_SeqRec.name = surroundgenes
-		#print new_SeqRec.name
 		return new_SeqRec	
 	 
 	"""
@@ -177,7 +197,11 @@ while successes < args.ngenes:
 			 result.description, 
 			 args.reciptaxa, 
 			 args.donortaxa,
-			 str(result.name),]
+			 args.taxadiff,
+			 str(len(result.seq)),
+			 str(len(result.features)),
+			 str(result.features),
+			 ]
 			  )
 
 # cleanup
