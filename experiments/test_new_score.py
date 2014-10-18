@@ -18,6 +18,8 @@ Author: Eric Franzosa (eric.franzosa@gmail.com)
 """
 
 import numpy as np
+import matplotlib
+matplotlib.use( "Agg" )
 import matplotlib.pyplot as plt
 
 # constants
@@ -36,13 +38,14 @@ def funcLGTScore ( aafTable ):
 		for iBug2 in range( iBug1+1, len( aafTable ) ):
 			afScores1, afScores2 = aafTable[iBug1], aafTable[iBug2]
 			afDiff = afScores1 - afScores2
-			# **** new lgt score formula from email ****
-			fTempScore = ( max( afDiff ) - min( afDiff ) ) * min( abs( afDiff ) )
+			# lgt score ("0.5" factor keeps this in [0,1])
+			fTempScore = 0.5 * ( max( afDiff ) - min( afDiff ) ) * min( abs( afDiff ) )
 			if fTempScore > fMaxScore:
 				fMaxScore = fTempScore
-	# **** penalize the best score if one bug covers the whole contig ****
+	# penalize if one bug covers whole contig well 
+    # Note: squaring penalty punishes ambiguous cases less
 	fPenalty = max( [min( afScores ) for afScores in aafTable] )
-	return fMaxScore - fPenalty
+	return fMaxScore * ( 1 - fPenalty**2 )
 
 # score and save each table; sort so most lgt-like at the end
 aResults = [( funcLGTScore( aafTable ), aafTable ) for aafTable in aContigTables]
@@ -55,7 +58,7 @@ def funcMakePlot( fHGTScore, aafTable, strName ):
 	ax = plt.subplot( 111 )
 	for afScores in aafTable:
 		ax.plot( range( iGroups ), afScores )
-	ax.set_title( "LGT Potential = %.2f" % ( fHGTScore ) )
+	ax.set_title( "LGT Potential = %.3f" % ( fHGTScore ) )
 	ax.set_xlabel( "Group" )
 	ax.set_ylabel( "Score" )
 	ax.set_xticks( range( iGroups ) )
