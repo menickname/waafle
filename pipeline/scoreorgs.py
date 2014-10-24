@@ -20,7 +20,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--fasta', help = 'Location and file of contig fasta file.')
 parser.add_argument('--blastoutput', help = 'Location and file of grouped and length-filtered BLAST output.')
 parser.add_argument('--taxa', help = "Determine what taxonomy level to do this at; it should be one of the letters: 'k', 'p', 'c', 'o', 'f', 'g', 's'")
-parser.add_argument('--delta', type = float, help = 'Determine the higher threshold score. Those above this score are high confidence BLAST hits')
+#parser.add_argument('--delta', type = float, help = 'Determine the higher threshold score. Those above this score are high confidence BLAST hits')
 #parser.add_argument('epsilon', type = float, help = 'Determine the lower threshold score. Those below this score are low confidence BLAST hits')
 args = parser.parse_args()
 
@@ -110,6 +110,8 @@ for contig in dddictContigGroupOrgHits.iterkeys():
 	dddictContigOrgGroupScores[contig] = ddictOrgGroupScores
 	dddictContigGroupOrgScores[contig] = ddictGroupOrgScores
 
+#temporarily disable for Eric's scoring method
+"""
 #Determine which contigs are:
 #1) One organism only 2) Multiple organisms across the whole contig 3) Potential LGT
 all_contigset = set(dddictContigOrgGroupScores.keys())
@@ -166,12 +168,13 @@ for contig in lgt_contigset:
 			genetable.write(' '.join(newinfo))
 
 genetable.close()
+"""
 
-#This is a temporary fix so I can use the old code to detect LGT
+#This is a temporary fix so I can use the old code to detect LGT; currently changed to original dictionaries for now
 filename = 'dddictCOGS_' + args.taxa + '.json'
 with open(filename, "w") as outfile:
-        json.dump(dddictCOGS, outfile)
+        json.dump(dddictContigOrgGroupScores, outfile)
 
 filename2 = 'dddictCGOS_' + args.taxa + '.json'
 with open(filename2, "w") as outfile2:
-	json.dump(dddictCGOS, outfile2)
+	json.dump(dddictContigGroupOrgScores, outfile2)

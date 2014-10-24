@@ -57,6 +57,7 @@ def sortGroups(ddictContigGroupHits2):
 		dictContigGroupOrder[contig] = groupcoordlist
 	return dictContigGroupOrder
 
+"""
 def scoreOrgs(dddictContigOrgGroupScores, ddictContigGroupLen, contig):
 	mystuff = []
 	for org in dddictContigOrgGroupScores[contig].iterkeys():
@@ -73,3 +74,6 @@ def scoreOrgs(dddictContigOrgGroupScores, ddictContigGroupLen, contig):
 		avgcov_groups = totalbp/float(totallen)
 		mystuff.append([org, avgscore_groups, avgcov_groups, totallen, numgroups])
 	return mystuff
+"""
+
+#This function takes in the gene table and formats...

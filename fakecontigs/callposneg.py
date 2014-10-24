@@ -43,6 +43,7 @@ for contig in dictanswerkey.keys():
 		truenegatives += 1
 
 falsecontigs = open('FPFN.txt', 'w')
+truecontigs = open('TPTN.txt', 'w')
 # Of the total number of positives, these are the positives from the pipeline
 pipelineP = []
 TPcount = 0
@@ -50,64 +51,97 @@ FPcount = 0
 highconfLGT = open(args.hgtresults).readlines()
 for i in range(len(highconfLGT)):
 	contigname = highconfLGT[i].split(' ')[0]
+	
+	#Get orgs from WAAFLE
 	orgset = set(highconfLGT[i].split('[')[0].strip().split(' ')[4:])
+	abbrset = set()
+	for org in orgset:
+		searchstring = args.taxa + '__\w*'
+		neworg = re.search(searchstring, org).group()
+		abbrset.add(neworg)
+
+	#Get orgs from answerkey
 	answer_status = dictanswerkey[contigname][0]
 	answer_orgset = set([dictanswerkey[contigname][1], dictanswerkey[contigname][2]])
-	answerabbr_orgset = set()
+	answer_abbrset = set()
 	for org in answer_orgset:
-		searchstring = '.*' + args.taxa + '__\w*'
+		searchstring =  args.taxa + '__\w*'
 		neworg = re.search(searchstring, org).group()
 		neworg2 = neworg.replace('|', '.')
-		answerabbr_orgset.add(neworg2)
-	numdiff = len(orgset - answerabbr_orgset)
-	orgset_diff = orgset-answerabbr_orgset
-	if answer_status == 'LGT' and numdiff == 0:
+		answer_abbrset.add(neworg2)
+
+	#Determine number of differences between them
+	numdiff = len(abbrset - answer_abbrset)
+	orgset_diff = abbrset-answer_abbrset
+	if answer_status == 'LGT':
+		#print contigname, 'TP', '\n', abbrset, '\n', answer_abbrset, numdiff, orgset_diff
 		TPcount += 1
+		truecontigs.write(contigname + '\t' + 'TP' + '\t' + answer_status + '\t' + str(abbrset) + '\t' + str(answer_abbrset) + '\t' + str(numdiff) + '\t' + str(orgset_diff) + '\n')
 		pipelineP.append(contigname)
 	else:
 		FPcount += 1
-		falsecontigs.write(contigname + '\t' + 'FP' + '\t' + answer_status + '\t' + str(len(orgset)) + '\t' + str(numdiff) + '\t' + str(orgset_diff) + '\n')
+		falsecontigs.write(contigname + '\t' + 'FP' + '\t' + answer_status + '\t' + str(abbrset) + '\t' + str(answer_abbrset) + '\t' + str(numdiff) + '\t' + str(orgset_diff) + '\n')
 		pipelineP.append(contigname)
 pipelinepositives = len(pipelineP)
 
 #Of all the negatives, these are the negatives from the pipeline
-pipelineN = set()
+dictpipelineN = {}
 for bstrline in open(args.genetable):
 	bbstrline = bstrline.strip().split(' ')
 	contigname, groupnum, taxa = bbstrline[0], bbstrline[1], bbstrline[2]
 	finalscore, finalpercID, finalgroupcov, contigcov = bbstrline[3], bbstrline[4], bbstrline[5], bbstrline[6]
 	start, end, combhitlen, grouplen, contiglen, status = bbstrline[7], bbstrline[8], bbstrline[9], bbstrline[10], bbstrline[11], bbstrline[12]
-	pipelineN.add(contigname + ':' + status)
-
+	searchstring = args.taxa + '__\w*'
+	abbrtaxa = re.search(searchstring, taxa).group()
+	dictpipelineN.setdefault(contigname+':'+status, []).append(abbrtaxa)
 
 TNcount = 0
 FNcount = 0
 pipelinenegatives = 0
-for contigstatus in pipelineN:
-	print contigstatus
+for contigstatus in dictpipelineN.keys():
 	contigname, status = contigstatus.split(':')[0], contigstatus.split(':')[1]
+	
+	#Get orgs from genetable
+	abbrset = set(dictpipelineN[contigstatus])
+
+        #Get orgs from answerkey
+        answer_status = dictanswerkey[contigname][0]
+        answer_orgset = set([dictanswerkey[contigname][1], dictanswerkey[contigname][2]])
+        answer_abbrset = set()
+        for org in answer_orgset:
+                searchstring =  args.taxa + '__\w*'
+                neworg = re.search(searchstring, org).group()
+                neworg2 = neworg.replace('|', '.')
+                answer_abbrset.add(neworg2)
+
+	#Determine number of differences between them
+        numdiff = len(abbrset - answer_abbrset)
+        orgset_diff = abbrset-answer_abbrset
+
 	if status == '1orgonly':
 		answer_status = dictanswerkey[contigname][0]
 		answer_orgset = set([dictanswerkey[contigname][1], dictanswerkey[contigname][2]])
 		if answer_status == 'noLGT':
 			TNcount += 1
+			truecontigs.write(contigname + '\t' + 'TN' + '\t' + '1orgonly' + '\t' + str(abbrset) + '\t' + str(answer_abbrset) + '\t' + str(numdiff) + '\t' + str(orgset_diff) + '\n')
 			pipelinenegatives += 1
 			#print contigname, 'TN-1orgonly' #Supposed to be noLGT, and algorithm gave 1orgonly
 		else:
 			FNcount += 1
 			pipelinenegatives += 1
-			falsecontigs.write(contigname + '\t' + 'FN' + '\t' + '1orgonly' + '\n')
+			falsecontigs.write(contigname + '\t' + 'FN' + '\t' + '1orgonly' + '\t' + str(abbrset) + '\t' + str(answer_abbrset) + '\t' + str(numdiff) + '\t' + str(orgset_diff) + '\n')
 			#print contigname, 'FN-1orgonly' #Supposed to be LGT, and algorithm gave 1orgonly
 	elif status == '1+orghigh':
 		answer_status = dictanswerkey[contigname][0]
 		if answer_status == 'noLGT':
 			TNcount += 1
+			truecontigs.write(contigname + '\t' + 'TN' + '\t' + '1+orghigh' + '\t' + str(abbrset) + '\t' + str(answer_abbrset) + '\t' + str(numdiff) + '\t' + str(orgset_diff) + '\n')
 			pipelinenegatives += 1
 			#print contigname, 'TN-1+orghigh' #Supposed to be noLGT, and algorithm gave 1+orghigh
 		else:
 			FNcount += 1
 			pipelinenegatives += 1
-			falsecontigs.write(contigname + '\t' + 'FN' + '\t' + '1org+high' + '\n')
+			falsecontigs.write(contigname + '\t' + 'FN' + '\t' + '1org+high' + '\t' + str(abbrset) + '\t' + str(answer_abbrset) + '\t' + str(numdiff) + '\t' + str(orgset_diff) + '\n')
 			#print contigname, 'FN-1+orghigh' #Supposed to be LGT, and algorithm gave 1+orghigh
 	elif status == 'potentialLGT':
 		answer_status = dictanswerkey[contigname][0]
@@ -116,14 +150,15 @@ for contigstatus in pipelineN:
 		else:
 			if answer_status == 'noLGT':
 				TNcount += 1
+				truecontigs.write(contigname + '\t' + 'TN' + '\t' + 'potentialLGT' + '\t' + str(abbrset) + '\t' + str(answer_abbrset) + '\t' + str(numdiff) + '\t' + str(orgset_diff) + '\n')
 				pipelinenegatives += 1
 				#print contigname, 'TN-potentiallgt'  #Supposed to be noLGT, and didn't make it through pipeline
 			else:
 				FNcount += 1
 				pipelinenegatives += 1
-				falsecontigs.write(contigname + '\t' + 'FN' + '\t' + 'potentialLGT' + '\n')
+				falsecontigs.write(contigname + '\t' + 'FN' + '\t' + 'potentialLGT' + '\t' + str(abbrset) + '\t' + str(answer_abbrset) + '\t' + str(numdiff) + '\t' + str(orgset_diff) + '\n')
 				#print contigname, 'FN-potentiallgt' #Supposed to be LGT, and didn't make it through the pipeline
-
+truecontigs.close()
 falsecontigs.close()
 
 #Output results
