@@ -37,13 +37,15 @@ def funcLGTScore ( aafTable ):
 	for iBug1 in range( len( aafTable ) ):
 		for iBug2 in range( iBug1+1, len( aafTable ) ):
 			afScores1, afScores2 = aafTable[iBug1], aafTable[iBug2]
+            # afBest will enforce that _one_ of the two bugs must always be high
+			afBest = [max( f1, f2 ) for f1, f2 in zip( afScores1, afScores2 )]
 			afDiff = afScores1 - afScores2
 			# lgt score ("0.5" factor keeps this in [0,1])
-			fTempScore = 0.5 * ( max( afDiff ) - min( afDiff ) ) * min( abs( afDiff ) )
+			fTempScore = 0.5 * ( max( afDiff ) - min( afDiff ) ) * min( afBest )
 			if fTempScore > fMaxScore:
 				fMaxScore = fTempScore
 	# penalize if one bug covers whole contig well 
-    # Note: squaring penalty punishes ambiguous cases less
+	# note: squaring penalty punishes ambiguous cases less
 	fPenalty = max( [min( afScores ) for afScores in aafTable] )
 	return fMaxScore * ( 1 - fPenalty**2 )
 
