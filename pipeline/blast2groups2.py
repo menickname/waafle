@@ -107,16 +107,22 @@ for contig in mod_ddict_sorted.iterkeys():
 	for n in range(len(mod_ddict_sorted[contig])):
 		info = mod_ddict_sorted[contig][n]	
 		groupname, start, end = info[0], info[1], info[2]
-		contiglen = float(end) - float(start) + 1
-		if contiglen > args.length:
+		grouplen = float(end) - float(start) + 1
+		if grouplen > args.length:
 			cnt += 1	
 			#Renumber and print out the new group names
 			newgroupname = 'Group' + str(cnt)
-			contiggroupcoords.write(contig + '\t' + newgroupname + '\t' + str(start) + '\t' + str(end) + '\n')
+			contiggroupcoords.write(contig + '\t' + str(grouplen) + '\t' + newgroupname + '\t' + str(start) + '\t' + str(end) + '\n')
 			#print contig, newgroupname, start, end #Use this to see how many groups there are, and their lengths
 			for o in range(len(mod_ddictContigGroupHits[contig][groupname])):
 				hit = mod_ddictContigGroupHits[contig][groupname][o]
 				hit.append(newgroupname)
 				print '\t'.join(str(hit[p]) for p in range(len(hit)))
-
 contiggroupcoords.close()
+
+#Append to info sheet
+infosheet = open('info.txt', 'w')
+infosheet.write('hitoverlap' + '\t' + str(args.hitoverlap) + '\n')
+infosheet.write('groupoverlap' + '\t' + str(args.groupoverlap) + '\n')
+infosheet.write('length cutoff' + '\t' + str(args.length) + '\n')
+infosheet.close()

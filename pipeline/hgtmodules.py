@@ -38,7 +38,7 @@ def contigGroupHits(dictContigHits):
         	ddictContigGroupHits.setdefault(bstrline, {}).update(dictGroupHits)
 	return ddictContigGroupHits
 
-#This function takes a dictioanry of dictionaries and sorts the groups based on start site.
+#This function takes a dictioanry of dictionaries and sorts the groups based on start site. It does not rename the groups.
 def sortGroups(ddictContigGroupHits2):
 	dictContigGroupOrder = {}
 	for contig in ddictContigGroupHits2.iterkeys():

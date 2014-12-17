@@ -20,8 +20,6 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--fasta', help = 'Location and file of contig fasta file.')
 parser.add_argument('--blastoutput', help = 'Location and file of grouped and length-filtered BLAST output.')
 parser.add_argument('--taxa', help = "Determine what taxonomy level to do this at; it should be one of the letters: 'k', 'p', 'c', 'o', 'f', 'g', 's'")
-#parser.add_argument('--delta', type = float, help = 'Determine the higher threshold score. Those above this score are high confidence BLAST hits')
-#parser.add_argument('epsilon', type = float, help = 'Determine the lower threshold score. Those below this score are low confidence BLAST hits')
 args = parser.parse_args()
 
 #Create a dictionary consisting of contig total lengths.
@@ -93,18 +91,17 @@ for contig in dddictContigGroupOrgHits.iterkeys():
 				
 			#Calculate overall score for the taxon
 			sumpercID = 0
-			combhitlen = len(dictIndexScore)
 			for base in dictIndexScore:
-				sumpercID += dictIndexScore[base][0]
-			finalpercID = sumpercID/combhitlen
-			finalgroupcov = combhitlen/float(ddictContigGroupLen[contig][group])
+				sumpercID += dictIndexScore[base][1]
+			finalpercID = sumpercID/len(dictIndexScore)
+			finalgroupcov = len(dictIndexScore)/float(ddictContigGroupLen[contig][group])
 			finalscore = finalpercID*finalgroupcov
-			newstart, newend = sorted(dictIndexScore.keys())[0], sorted(dictIndexScore.keys())[combhitlen - 1]
-			contigcov = combhitlen/float(dictContigLength[contig])
+			newstart, newend = sorted(dictIndexScore.keys())[0], sorted(dictIndexScore.keys())[len(dictIndexScore)-1]
+			contigcov = len(dictIndexScore)/float(dictContigLength[contig])
 
 			#Add to dictionaries
-			dictOrgScores[org] = [finalscore, finalpercID, finalgroupcov, contigcov, newstart, newend, combhitlen, ddictContigGroupLen[contig][group], dictContigLength[contig]]
-			dictGroupScores[group] = [finalscore, finalpercID, finalgroupcov, contigcov, newstart, newend, combhitlen, ddictContigGroupLen[contig][group], dictContigLength[contig]]
+			dictOrgScores[org] = [finalscore, finalpercID, finalgroupcov, contigcov, newstart, newend, len(dictIndexScore), ddictContigGroupLen[contig][group], dictContigLength[contig]]
+			dictGroupScores[group] = [finalscore, finalpercID, finalgroupcov, contigcov, newstart, newend, len(dictIndexScore), ddictContigGroupLen[contig][group], dictContigLength[contig]]
 			ddictOrgGroupScores.setdefault(org, {}).update(dictGroupScores)
 		ddictGroupOrgScores[group] = dictOrgScores
 	dddictContigOrgGroupScores[contig] = ddictOrgGroupScores
