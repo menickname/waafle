@@ -26,6 +26,7 @@ import matplotlib.pyplot as plt
 import json
 import re
 from operator import itemgetter, attrgetter, methodcaller
+import math
 
 # arguments
 parser = argparse.ArgumentParser()
@@ -53,6 +54,7 @@ with open(args.dddictCOGS) as infile1:
         dddictCOGS = json.load(infile1)
 with open(args.dddictCGOS) as infile2:
         dddictCGOS = json.load(infile2)
+
 #This function will divide the organisms into donors and recipients
 def finddonorrecip ( scorelist, numgenes ):
 	donorlist = []
@@ -75,7 +77,8 @@ def calcComplement ( scorelist, aafTable ):
 			complementarity = np.average(np.amax(newarray, 0))
 			donorscore_1, recipscore_1 = scorelist[i][1], scorelist[i][2]
 			donorscore_2, recipscore_2 = scorelist[j][1], scorelist[j][2]
-			complementlist.append([complementarity, donorscore_1, recipscore_1, donorscore_2, recipscore_2, i, j])
+			drscore2_1, drscore2_2 = scorelist[i][7], scorelist[j][7]
+			complementlist.append([complementarity, donorscore_1, recipscore_1, donorscore_2, recipscore_2, i, j, drscore2_1, drscore2_2])
 	return sorted(complementlist, reverse=True)
 
 def callDonorRecip ( LGTpair, numgenes ):
@@ -97,7 +100,7 @@ def callDonorRecip ( LGTpair, numgenes ):
 def classifycontigs ( aafTable, contig ):
 	bugs = aafTable.shape[0] #number of bugs
 	genes = aafTable.shape[1] #number of genes
-
+	
 	# calculate the perc50score and realization for each bug in the contig
 	scorelist = []
 	for iBug in range( len( aafTable ) ):
@@ -121,11 +124,14 @@ def classifycontigs ( aafTable, contig ):
 		score = perc50score - realization
 		donorscore = realization - perc50score
 		recipscore = min(realization, perc50score)
-		scorelist.append([score, donorscore, recipscore, perc50score, realization, iBug, bugAvg])
-		#if bugName != "unknown":
-		#	print contig, "known", bugs, genes, score, donorscore, recipscore, perc50score, realization, bugAvg
-		#else:
-		#	print contig, "unknown", bugs, genes, score, donorscore, recipscore, perc50score, realization, bugAvg
+                drscore2 = bugAvg-bugMed #Test Method 1
+                drscore3 = (perc50score-bugMed)/(perc50score+0.0000001) #Test Method 2
+
+		scorelist.append([score, donorscore, recipscore, perc50score, realization, iBug, bugAvg, drscore2, drscore3])
+
+		#Print all the different types of scores for comparison
+		#print contig, iBug, bugs, genes, score, donorscore, recipscore, perc50score, realization, bugMed, bugAvg, bugAvg-bugMed, (perc50score-bugMed)/(perc50score+0.0000001)
+
 	scorelist_sort = sorted(scorelist, reverse=True)
 	scoresonly = np.array(scorelist)[:,0]
 	
@@ -150,8 +156,19 @@ def classifycontigs ( aafTable, contig ):
                 org2score, org2_perc50, org2_real = org2info[0], org2info[3], org2info[4]
 		
 		if complementscore > args.complement:
+			print aafTable
+				
+			# identify the donor and recipient - NEW METHOD #1
+			org1, org2 = topLGTpair[5], topLGTpair[6]
+			org1_drscore2, org2_drscore2 = topLGTpair[7], topLGTpair[8]
+			print contig, org1, org1_drscore2
+			print contig, org2, org2_drscore2
+
+			# identify the donor and recipient - NEW METHOD #2
+			#if drscore3 >
 			
-			# identify the donor and recipient if possible
+			# identify the donor and recipient if possible - OLD METHOD
+			"""
 			donorindex, recipindex = callDonorRecip(topLGTpair, genes)[0], callDonorRecip(topLGTpair, genes)[1]
 			if donorindex != 'unknown':
 				donorinfo = scorelist[donorindex]
@@ -171,6 +188,7 @@ def classifycontigs ( aafTable, contig ):
 			answerlist.append(['No LGT', contig, bugs, genes, scorelist_sort[0][6], 'Best_one_bug', contigorgindex[contig][scorelist_sort[0][5]], scorelist_sort[0][0], scorelist_sort[0][3], scorelist_sort[0][4]])
 
 	return answerlist
+	"""
 
 """
 		candidatelist = []

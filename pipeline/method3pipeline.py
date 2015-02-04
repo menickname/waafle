@@ -14,15 +14,16 @@ parser = argparse.ArgumentParser()
 parser.add_argument( '--fasta', help='Location and file of assembled contigs. This should be in fasta format.' )
 parser.add_argument( '--hitoverlap', default=0.5, help='Amount hits should overlap to join a group.')
 parser.add_argument( '--groupoverlap', default=0.5, help='Amount groups should overlap to merge.')
-parser.add_argument( '--delta', type=str, help='Upper threshold for calling high confidence BLAST hits' )
-parser.add_argument( '--epsilon', type=str, help='Lower threshold for calling low confidence BLAST hits' )
 parser.add_argument( '--length', default=100, help='Length of groups to exclude.' )
 parser.add_argument( '--taxa', type=str, help='Taxa level to detect LGT at.' )
+parser.add_argument( '--onebug', help='Level above which to declare 1 bug contig.' )
+parser.add_argument( '--complement', help='Level above which to declare LGT between 2 bugs.' )
 args = parser.parse_args()
 
 # file locations
 pipelineloc = '/n/home05/thsu/bitbucket/hgt_project/pipeline'
 currentloc = subprocess.check_output(["pwd"])
+fakecontigloc = '/n/home05/thsu/bitbucket/hgt_project/150107'
 
 # run BLAST
 #database = '/n/huttenhower_lab_nobackup/data/hgt/blast/blast_db_updated/repophlan_31122013_speciescentroids.db'
@@ -54,18 +55,13 @@ genetable = open('genetable.txt', 'w')
 subprocess.call(["python", scriptloc, "--dddictCGOS", dictname1], stdout=genetable)
 genetable.close()
 
-### Up until this section the pipeline is the same for all methods
-# split contigs into oneorgonly, highconforg, and potentialLGT
-scriptloc = pipelineloc + '/method1/detectcontigtype.py'
-subprocess.call(["python", scriptloc, "--dddictCGOS", dictname1, "--dddictCOGS", dictname2, "--delta", args.delta])
-
 # detect high confidence lgt
 hgtfilename = 'hgt_results_' + args.taxa + '.txt'
 hgtresults = open(hgtfilename, 'w')
-scriptloc = pipelineloc + '/method1/detectlgt.py'
-dictnamelgt_1 = 'dddictCGOS_lgt_' + args.taxa + '.json'
-dictnamelgt_2 = 'dddictCOGS_lgt_' + args.taxa + '.json'
-subprocess.call(["python", scriptloc, "--dict2", dictnamelgt_1, "--dict1", dictnamelgt_2, "--delta", args.delta, "--epsilon", args.epsilon], stdout=hgtresults)
+scriptloc = pipelineloc + '/method3/method3-1.py'
+dictnamelgt_1 = 'dddictCGOS_' + args.taxa + '.json'
+dictnamelgt_2 = 'dddictCOGS_' + args.taxa + '.json'
+subprocess.call(["python", scriptloc, "--dddictCGOS", dictnamelgt_1, "--dddictCOGS", dictnamelgt_2, "--onebug", args.onebug, "--complement", args.complement], stdout=hgtresults)
 hgtresults.close()
 
 """
