@@ -17,14 +17,7 @@ import os, sys, csv, argparse
 # constants
 # ---------------------------------------------------------------
 
-c_choco_header_delim = "|"
-c_tax_delim = "."
-
-# ---------------------------------------------------------------
-# blast output configuration
-# ---------------------------------------------------------------
-
-blastfields = [
+c_blastfields = [
     ["qseqid", str],
     ["sseqid", str],
     ["qlen", int],
@@ -40,7 +33,10 @@ blastfields = [
     ["evalue", float],
     ["bitscore", float],
 ]
-blast_format_string = " ".join( ["6"] + [fname for [fname, ftype] in blastfields] )
+
+c_blast_format_string = " ".join( ["6"] + [fname for [fname, ftype] in c_blastfields] )
+c_choco_header_delim = "|"
+c_tax_delim = "."
 
 # ---------------------------------------------------------------
 # classes for working with hits (here to force equivalenence with output)
@@ -52,7 +48,7 @@ class Hit( ):
     Row is provided already split by the csv reader.
     Hit MUST be compatible with the blast search defined above.
 
-    Addition information is pulled into the hit object by parsing the
+    Additional information is pulled into the hit object by parsing the
     hit chocophlan centroid's header. Chocophlan headers have the following
     fields delimited with a pipe ("|"):
     
@@ -62,15 +58,15 @@ class Hit( ):
     3: refseq number
     4: coordinates
     5: ncbi tax id
-    6: taxonomy ("."-delimitted)
+    6: taxonomy ("."-delimited)
     7: UniRef90 hit
     8: UniRef50 hit
     """
     def __init__( self, blastrow ):
-        assert len( blastrow ) == len( blastfields ), \
+        assert len( blastrow ) == len( c_blastfields ), \
             "inconsistent blast row {}".format( str( blastrow ) )
         # pull values from blast line and coerce to appropriate types
-        for [fname, ftype], value in zip( blastfields, blastrow ):
+        for [fname, ftype], value in zip( c_blastfields, blastrow ):
             setattr( self, fname, ftype( value ) )
         # derived coverage stats
         self.scov = ( self.send - self.sstart + 1 ) / float( self.slen )

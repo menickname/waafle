@@ -18,7 +18,7 @@ import waafle_utils as wu
 
 def get_args():
     """
-    Get arguments passed to waafle_search.py in script mode
+    Get arguments passed to script
     """
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -68,7 +68,7 @@ def main():
         args.db,
         args.out,
         args.num_threads,
-        wu.blast_format_string,
+        wu.c_blast_format_string,
         )
     print( "Executing BLASTN command:\n{}".format( command ), file=sys.stderr )
     if int( args.execute ):
