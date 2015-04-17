@@ -32,7 +32,7 @@ c_blastfields = [
     ["gaps", int],
     ["evalue", float],
     ["bitscore", float],
-#    ["sstrand", str],
+    ["sstrand", str],
 ]
 
 c_blast_format_string = " ".join( ["6"] + [fname for [fname, ftype] in c_blastfields] )
@@ -108,6 +108,9 @@ def iter_hits( blastoutfile ):
         for row in csv.reader( fh, dialect="excel-tab" ):
             yield Hit( row )
 
+def hit_sort( hits ):
+    return sorted( hits, key=lambda k: k.length, reverse=True )
+
 def iter_contig_hits( blastoutfile ):
     """
     Iterate through hits by contig (assumes file is sorted by query)
@@ -117,28 +120,20 @@ def iter_contig_hits( blastoutfile ):
         for row in csv.reader( fh, dialect="excel-tab" ):
             hit = Hit( row )
             if contig is not None and hit.qseqid != contig:
-                yield contig, hits
+                yield contig, hit_sort( hits )
                 # reset
                 hits = []
             contig = hit.qseqid
             hits.append( hit )
         # last case cleanup
-        yield contig, hits
+        yield contig, hit_sort( hits )
 
 # ---------------------------------------------------------------
 # tests
 # ---------------------------------------------------------------
 
 if __name__ == "__main__":
-    counter = 0
-    for hit in iter_hits( sys.argv[1] ):
-        print( hit.qseqid, hit.length, hit.taxonomy[2:5], hit.evalue )
-        counter += 1
-        if counter > 10:
-            break
-    counter = 0
     for contig, hits in iter_contig_hits( sys.argv[1] ):
-        print( contig, len( hits ) )
-        counter += 1
-        if counter > 10:
-            break
+        print( contig )
+        for hit in hits:
+            print( "\t", hit.length )
