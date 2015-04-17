@@ -1,4 +1,4 @@
-#!/bin/python
+#!/bin/python 
 
 """
 This script will take us through our first method for detecting LGT. To do this, it will:
@@ -28,7 +28,7 @@ fakecontigloc = '/n/home05/thsu/bitbucket/hgt_project/150107'
 # run BLAST
 #database = '/n/huttenhower_lab_nobackup/data/hgt/blast/blast_db_updated/repophlan_31122013_speciescentroids.db'
 #input = args.fasta
-output = 'blastn_1000.out'
+output = 'blastn.out'
 #subprocess.call(["blast", "-db", database, "-query", input, "-out", output, "-outfmt", "'6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qcovs qcovhsp'"])
 
 # sort BLAST hits by name, length, and bitscore
@@ -52,7 +52,7 @@ scriptloc = pipelineloc + '/converttogenetable.py'
 dictname1 = 'dddictCGOS_' + args.taxa + '.json'
 dictname2 = 'dddictCOGS_' + args.taxa + '.json'
 genetable = open('genetable.txt', 'w')
-subprocess.call(["python", scriptloc, "--dddictCGOS", dictname1], stdout=genetable)
+subprocess.call(["python", scriptloc, "--dddictCGOS", dictname1, "--contiggroupcoord", "contiggroupcoord.txt"], stdout=genetable)
 genetable.close()
 
 # detect high confidence lgt
@@ -61,7 +61,7 @@ hgtresults = open(hgtfilename, 'w')
 scriptloc = pipelineloc + '/method3/method3-1.py'
 dictnamelgt_1 = 'dddictCGOS_' + args.taxa + '.json'
 dictnamelgt_2 = 'dddictCOGS_' + args.taxa + '.json'
-subprocess.call(["python", scriptloc, "--dddictCGOS", dictnamelgt_1, "--dddictCOGS", dictnamelgt_2, "--onebug", args.onebug, "--complement", args.complement], stdout=hgtresults)
+subprocess.call(["python", scriptloc, "--dddictCGOS", dictnamelgt_1, "--dddictCOGS", dictnamelgt_2, "--onebug", args.onebug, "--complement", args.complement, "--taxa", args.taxa], stdout=hgtresults)
 hgtresults.close()
 
 """
