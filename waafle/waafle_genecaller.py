@@ -69,24 +69,26 @@ def hits2genes( blastoutfile ):
     hits into genes.
     """
     genes = []
-    for hit in wu.iterhits( blastoutfile ):
+    for hit in wu.iter_hits( blastoutfile ):
+        #genes.append( [hit.qseqid, hit.qstart, hit.qend, hit.sstrand] )
         genes.append( [hit.qseqid, hit.qstart, hit.qend] )
     return genes
 
-def writegff( genes, outfile ):
+def write_gff( genes, outfile ):
     """
     Write genes to a file
     """
-    fh = open( outfile, "w" )
-    writer = csv.writer( fh, dialect="excel-tab" )
-    for contig, start, end in genes:
-        # important to copy [:]
-        gene = c_dummy_gff_row[:] 
-        gene[0] = contig
-        gene[3] = start
-        gene[4] = end
-        writer.writerow( gene )
-    fh.close()
+    with wu.try_open( outfile, "w" ) as fh:
+        writer = csv.writer( fh, dialect="excel-tab" )
+        #for contig, start, end, strand in genes:
+        for contig, start, end in genes:
+            # important to copy [:]
+            gene = c_dummy_gff_row[:] 
+            gene[0] = contig
+            gene[3] = start
+            gene[4] = end
+            #gene[6] = strand
+            writer.writerow( gene )
 
 # ---------------------------------------------------------------
 # main
@@ -94,7 +96,7 @@ def writegff( genes, outfile ):
 
 def main():
     args = get_args()
-    writegff( hits2genes( args.input ), args.out )
+    write_gff( hits2genes( args.input ), args.out )
 
 if __name__ == "__main__":
     main()

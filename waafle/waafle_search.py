@@ -62,11 +62,12 @@ def get_args():
 
 def main():
     args = get_args()
-    command = "{0} -query {1} -db {2} -out {3} -num_threads {4} -outfmt \'{5}\'".format( 
+    command = "{0} -query {1} -db {2} -out {3} -max_target_seqs {4} -num_threads {5} -outfmt \'{6}\'".format( 
         args.blastpath,
         args.query,
         args.db,
         args.out,
+        wu.c_max_target_seqs,
         args.num_threads,
         wu.c_blast_format_string,
         )
