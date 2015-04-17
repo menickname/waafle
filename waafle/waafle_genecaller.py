@@ -69,8 +69,8 @@ def hits2genes( blastoutfile ):
     hits into genes.
     """
     genes = []
-    for hit in wu.iter_hits( blastoutfile ):
-        genes.append( [hit.qseqid, hit.qstart, hit.qend, hit.sstrand] )
+    for contig, sorted_hits in wu.iter_contig_hits( blastoutfile ):
+        """ file me in """
     return genes
 
 def write_gff( genes, outfile ):
