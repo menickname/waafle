@@ -41,8 +41,41 @@ c_tax_delim = "."
 # blast default is 500, which is sometimes too small for long contigs
 c_max_target_seqs = 10000
 
+c_gfffields = [
+    ["seqname", str],
+    ["source", str],
+    ["feature", str],
+    ["start", int],
+    ["end", int],
+    ["score", float],
+    ["strand", str],
+    ["frame", str],
+    ["attribute", str],
+]
+
+c_contigfields = [
+    ["genes", dict],
+    ["taxa", dict],
+    ["length", int],
+    ["numgenes", int],
+    ["numtaxa", int],
+    ["numhits", int],
+]
+
+c_taxafields = [
+    ["taxa", str],
+    ["score", float],
+    ["start", int],
+    ["end", int],
+    ["gene", int],
+    ["percid", float],
+    ["genecov", float],
+    ["contig", str],
+    ["strand", str],
+]
+
 # ---------------------------------------------------------------
-# classes for working with hits (here to force equivalenence with output)
+# classes for working with hits and gff (here to force equivalenence with output)
 # ---------------------------------------------------------------
 
 class Hit( ):
@@ -86,6 +119,49 @@ class Hit( ):
         self.uniref90 = chocoitems[7]
         self.uniref50 = chocoitems[8]
 
+
+class GFF( ):
+    """
+    Processes the information from a single gff line;
+    Row is provided already split by the csv reader.
+
+    Details of the GTF/GFF file format:
+    Fields must be tab-separated.
+    Empty columns should be denoted with a '.'.
+
+    0: seqname - name of the chromosome or scaffold
+    1: source - name of the program that generated this feature
+    2: feature - feature type name, e.g. Gene, Variation, Similarity
+    3: start - Start position of the feature, with sequence numbering starting at 1.
+    4: end - End position of the feature, with sequence numbering starting at 1.
+    5: score - A floating point value.
+    6: strand - defined as + (forward) or - (reverse).
+    7: frame - One of '0', '1' or '2'.
+    8: attribute - A semicolon-separated list of tag-value pairs.
+    """
+    def __init__( self, gffrow ):
+        for [fname, ftype], value in zip( c_gfffields, gffrow ):
+            setattr( self, fname, ftype( value ) )
+	attritems = self.attribute.split( ';' )
+	for items in attritems:
+	    label, descriptor = items.split( '=' )[0], items.split( '=' )[1]
+	    if label == 'ID':
+		lastindex = descriptor.rindex( '_' )
+		self.genenum = int( descriptor[lastindex + 1:] )
+
+class Contig( ):
+    """
+    """
+    def __init__( self, contigrow ):
+	for [fname, ftype], value in zip( c_contigfields, contigrow ):
+	    setattr( self, fname, ftype( value ) )
+
+class Taxa( ):
+    """
+    """
+    def __init__( self, taxainfo ):
+        for [fname, ftype], value in zip( c_taxafields, taxainfo ):
+            setattr( self, fname, ftype( value ) )
 # ---------------------------------------------------------------
 # functions
 # ---------------------------------------------------------------
@@ -124,6 +200,36 @@ def iter_contig_hits( blastoutfile ):
             hits.append( hit )
         # last case cleanup
         yield contig, hits
+
+def iter_contigs( infile ):
+    """
+    Iterate through classes by contig.
+    The first column must be the contig name.
+    """
+    contig, lines = None, []
+    with try_open( infile ) as fh:
+	for row in csv.reader( fh, dialect="excel-tab" ):
+	    if contig is not None and row[0] != contig:
+		yield contig, lines
+		# reset
+		lines = []
+	    contig = row[0]
+	    lines.append( row )
+	# last case cleanup
+	yield contig, lines
+
+def calc_overlap( onestart, oneend, twostart, twoend ):
+    """
+    Calculate overlap between two hits or genes.
+    """
+    if onestart - twoend > 0 or twostart - oneend > 0:
+        return 0
+    else:
+        coord_sorted = sorted( [onestart, oneend, twostart, twoend] )
+        divisor = float( min( oneend - onestart + 1, twoend - twostart + 1 ) )
+        overlap = float( ( coord_sorted[2] - coord_sorted[1] )/divisor )
+        return overlap
+
 
 # ---------------------------------------------------------------
 # tests

@@ -34,7 +34,7 @@ from operator import itemgetter, attrgetter, methodcaller
 # ---------------------------------------------------------------
 # constants
 # ---------------------------------------------------------------
-
+"""
 c_gfffields = [
     ["seqname", str],
     ["source", str],
@@ -46,19 +46,20 @@ c_gfffields = [
     ["frame", str],
     ["attribute", str],
 ]
-
+"""
 # ---------------------------------------------------------------
 # classes for working with gff
 # ---------------------------------------------------------------
+"""
 class GFF( ):
-    """
+    
     Processes the information from a single gff line;
     Row is provided already split by the csv reader.
-    """
+    
     def __init__( self, gffrow ):
         for [fname, ftype], value in zip( c_gfffields, gffrow ):
             setattr( self, fname, ftype( value ) )
-        
+"""     
 # ---------------------------------------------------------------
 # functions
 # ---------------------------------------------------------------
@@ -109,13 +110,11 @@ def hits2coords( hitlist ):
     """
     poscoordslist, negcoordslist = [], []
     for hit in hitlist:
+	start = hit.qstart
+	end = hit.qend
         if hit.sstrand == 'minus':
-            start = hit.send
-            end = hit.sstart
             negcoordslist.append( [start, end] )
         else:
-            start = hit.sstart
-            end = hit.send
             poscoordslist.append( [start, end] )
     return poscoordslist, negcoordslist
 
@@ -129,6 +128,7 @@ def coords2groups( coordslist, overlap_thresh ):
         group_add = False 
         if len( groups )== 0:
             groups.append( [start, end] )
+	    continue
         else:
             for i in range( len( groups ) ):
                 overlap = calc_overlap( groups[i][0], groups[i][1], start, end )
@@ -196,12 +196,12 @@ def writegff( contig, posgenelist, neggenelist, out ):
     """
     allgenelist = posgenelist + neggenelist
     allgenelist.sort( key=itemgetter( 0 ) )
-    counter = 0
+    counter = 1
 
     with wu.try_open( out, "a" ) as fh:
             writer = csv.writer( fh, dialect="excel-tab" )
             for gene in allgenelist: 
-                gffrow = GFF( [] )
+                gffrow = wu.GFF( [] )
                 gffrow.seqname = contig
                 gffrow.source = 'WAAFLE'
                 gffrow.feature = 'CDS'
@@ -224,7 +224,7 @@ def main():
     args = get_args()
     for contig, hitlist in wu.iter_contig_hits( args.input ):
         hitlist_sorted = sorted( hitlist, key=attrgetter( 'length', 'bitscore' ), reverse=True )
-        poscoordlist, negcoordlist = hits2coords( hitlist_sorted )
+	poscoordlist, negcoordlist = hits2coords( hitlist_sorted )
         posgrouplist = coords2groups( poscoordlist, args.overlap )
         neggrouplist = coords2groups( negcoordlist, args.overlap )
         posgenelist = groups2genes( posgrouplist, args.overlap )
