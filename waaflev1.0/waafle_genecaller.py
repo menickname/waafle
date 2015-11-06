@@ -31,35 +31,7 @@ import os, sys, csv, argparse
 import waafle_utils as wu
 from operator import itemgetter, attrgetter, methodcaller
 
-# ---------------------------------------------------------------
-# constants
-# ---------------------------------------------------------------
-"""
-c_gfffields = [
-    ["seqname", str],
-    ["source", str],
-    ["feature", str],
-    ["start", int],
-    ["end", int],
-    ["score", float],
-    ["strand", str],
-    ["frame", str],
-    ["attribute", str],
-]
-"""
-# ---------------------------------------------------------------
-# classes for working with gff
-# ---------------------------------------------------------------
-"""
-class GFF( ):
-    
-    Processes the information from a single gff line;
-    Row is provided already split by the csv reader.
-    
-    def __init__( self, gffrow ):
-        for [fname, ftype], value in zip( c_gfffields, gffrow ):
-            setattr( self, fname, ftype( value ) )
-"""     
+
 # ---------------------------------------------------------------
 # functions
 # ---------------------------------------------------------------
@@ -78,7 +50,7 @@ def get_args():
         )
     parser.add_argument( 
         "-o", "--out",
-        default="waafle_genes.gff",
+        default="waafle-genes.gff",
         help="waafle gene calls",
         )
     parser.add_argument(
@@ -89,19 +61,6 @@ def get_args():
         )
     args = parser.parse_args()
     return args
-
-
-def calc_overlap( onestart, oneend, twostart, twoend ):
-    """
-    Calculate overlap between two hits or genes.
-    """
-    if onestart - twoend > 0 or twostart - oneend > 0:
-        return 0
-    else:
-        coord_sorted = sorted( [onestart, oneend, twostart, twoend] )
-        divisor = float( min( oneend - onestart + 1, twoend - twostart + 1 ) )
-        overlap = float( ( coord_sorted[2] - coord_sorted[1] )/divisor )
-        return overlap
 
 
 def hits2coords( hitlist ):
@@ -131,7 +90,7 @@ def coords2groups( coordslist, overlap_thresh ):
 	    continue
         else:
             for i in range( len( groups ) ):
-                overlap = calc_overlap( groups[i][0], groups[i][1], start, end )
+                overlap = wu.calc_overlap( groups[i][0], groups[i][1], start, end )
                 if overlap >= overlap_thresh:
                    coord_sorted = sorted( [groups[i][0], groups[i][1], start, end] )
                    groups[i] = [coord_sorted[0], coord_sorted[3]]
@@ -189,7 +148,7 @@ def printgff( gffrow ):
     return gfflist
 
 
-def writegff( contig, posgenelist, neggenelist, out ):
+def writegff( contig, posgenelist, neggenelist ):
     """
     For each contig, sort all genes by start coordinate regardless of strand.
     Output each gene in gff format to a new file.
@@ -198,23 +157,24 @@ def writegff( contig, posgenelist, neggenelist, out ):
     allgenelist.sort( key=itemgetter( 0 ) )
     counter = 1
 
-    with wu.try_open( out, "a" ) as fh:
-            writer = csv.writer( fh, dialect="excel-tab" )
-            for gene in allgenelist: 
-                gffrow = wu.GFF( [] )
-                gffrow.seqname = contig
-                gffrow.source = 'WAAFLE'
-                gffrow.feature = 'CDS'
-                gffrow.start = gene[0]
-                gffrow.end = gene[1]
-                gffrow.score = gene[3]
-                gffrow.strand = gene[2]
-                gffrow.frame = '0'
-                gffrow.attribute = 'ID=' + contig + '_' + str(counter)
-                counter += 1
-                gffline = printgff( gffrow )
-                writer.writerow( gffline )
-                        
+    gfflist = []
+    for gene in allgenelist: 
+        gffrow = wu.GFF( [] )
+        gffrow.seqname = contig
+        gffrow.source = 'WAAFLE'
+        gffrow.feature = 'CDS'
+        gffrow.start = gene[0]
+        gffrow.end = gene[1]
+        gffrow.score = gene[3]
+        gffrow.strand = gene[2]
+        gffrow.frame = '0'
+        gffrow.attribute = 'ID=' + contig + '_' + str(counter)
+        #gffrow.genenum( gffrow.attribute )
+        counter += 1
+        gffline = printgff( gffrow )
+        gfflist.append( gffline )
+    return gfflist
+        
 
 # ---------------------------------------------------------------
 # main
@@ -222,17 +182,23 @@ def writegff( contig, posgenelist, neggenelist, out ):
 
 def main():
     args = get_args()
-    for contig, hitlist in wu.iter_contig_hits( args.input ):
-        hitlist_sorted = sorted( hitlist, key=attrgetter( 'length', 'bitscore' ), reverse=True )
-	poscoordlist, negcoordlist = hits2coords( hitlist_sorted )
-        posgrouplist = coords2groups( poscoordlist, args.overlap )
-        neggrouplist = coords2groups( negcoordlist, args.overlap )
-        posgenelist = groups2genes( posgrouplist, args.overlap )
-        neggenelist = groups2genes( neggrouplist, args.overlap )
-        posgenecount = countgenes( posgenelist, poscoordlist, '+' )
-        neggenecount = countgenes( neggenelist, negcoordlist, '-' )
-        writegff( contig, posgenecount, neggenecount, args.out )
-        
+    with wu.try_open( args.out, "w" ) as fh:
+            writer = csv.writer( fh, dialect="excel-tab" )
+
+            for contig, hitlist in wu.iter_contig_hits( args.input ):
+                hitlist_sorted = sorted( hitlist, key=attrgetter( 'length', 'bitscore' ), reverse=True )
+                poscoordlist, negcoordlist = hits2coords( hitlist_sorted )
+                posgrouplist = coords2groups( poscoordlist, args.overlap )
+                neggrouplist = coords2groups( negcoordlist, args.overlap )
+                posgenelist = groups2genes( posgrouplist, args.overlap )
+                neggenelist = groups2genes( neggrouplist, args.overlap )
+                posgenecount = countgenes( posgenelist, poscoordlist, '+' )
+                neggenecount = countgenes( neggenelist, negcoordlist, '-' )
+                gfflist = writegff( contig, posgenecount, neggenecount )
+                for gff in gfflist:
+                    writer.writerow( gff )
+    
+    fh.close()
 
 if __name__ == "__main__":
     main()
