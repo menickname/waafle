@@ -16,6 +16,7 @@ from __future__ import print_function # python 2.7+ required
 import os, sys, csv, argparse
 import waafle_utils as wu
 import numpy as np
+from collections import Counter
 
 # ---------------------------------------------------------------
 # constants
@@ -112,9 +113,14 @@ def hits2orgs( contig, gene, hitlist, taxalevel ):
             genehits.append( hit ) 
     
     dict_orghits = {}
+    uniref50_list, uniref90_list = [], []
     for hit in genehits:
+        uniref50_list.append( hit.uniref50[ hit.uniref50.rindex('_') + 1 : ] )
+        uniref90_list.append( hit.uniref90[ hit.uniref90.rindex('_') + 1: ] )
         org = hit.taxonomy[taxalevel]
         dict_orghits.setdefault( org, [] ).append( hit )
+    uniref50_format = ','.join( [ str(x) + ':' + str(y) for x, y in Counter( uniref50_list ).most_common( 3 )] )
+    uniref90_format = ','.join( [ str(x) + ':' + str(y) for x, y in Counter( uniref90_list).most_common( 3 )] )
     
     taxalist = []
     for org in dict_orghits:
@@ -124,12 +130,16 @@ def hits2orgs( contig, gene, hitlist, taxalevel ):
         taxa.score, taxa.percid, taxa.genecov, taxa.start, taxa.end = score_taxa( dict_orghits[org], genelen )
         taxa.gene = gene.genenum
         taxa.contig = contig
+        taxa.uniref50 = uniref50_format
+        taxa.uniref90 = uniref90_format
+        taxa.hits = len(genehits)
         taxalist.append( taxa )
     if len( taxalist ) == 0:
         taxa = wu.Taxa( [] )
         taxa.taxa = "unknown"
         taxa.strand = gene.strand
         taxa.score, taxa.percid, taxa.genecov, taxa.start, taxa.end = 0, 0, 0, 0, 0
+        taxa.uniref50, taxa.uniref90, taxa.hits = "NA", "NA", 0
         taxa.gene = gene.genenum
         taxa.contig = contig
         taxalist.append( taxa )
@@ -146,6 +156,9 @@ def print_taxa( taxa ):
                     str( taxa.score ),
                     str( taxa.percid ),
                     str( taxa.genecov ),
+                    str( taxa.uniref50 ),
+                    str( taxa.uniref90 ),
+                    str( taxa.hits ),
                     ]
     return orderedlist
 
@@ -163,6 +176,7 @@ def main():
 
     with wu.try_open( args.out, "w" ) as fh:
         writer = csv.writer( fh, dialect="excel-tab" )
+        writer.writerow( ["contig", "gene", "strand", "start", "end", "taxa", "score", "percid", "genecov", "uniref50", "uniref90", "numhits"] ) 
         for contig, hitlist in wu.iter_contig_hits( args.blast ):
             if contig in dict_contiggenes:
                 genes = dict_contiggenes[contig]

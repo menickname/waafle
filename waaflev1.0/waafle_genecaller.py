@@ -30,6 +30,7 @@ from __future__ import print_function # python 2.7+ required
 import os, sys, csv, argparse
 import waafle_utils as wu
 from operator import itemgetter, attrgetter, methodcaller
+from collections import Counter
 
 
 # ---------------------------------------------------------------
@@ -116,18 +117,30 @@ def groups2genes( groups, overlap_thresh ):
     return genes
 
 
-def countgenes( genelist, coordlist, sign ):
+def charac_genes( genelist, sign, hitlist ): #Add in assign Unirefs
     """
     Count how many hits are associated with each gene.
     Return the gene coordinates (start and end), strand, and count as a list. 
     """
+    if sign == '+':
+        wsign = 'plus'
+    else:
+        wsign = 'minus'
     for i in range( len( genelist ) ):
-        genelist[i].append(sign)
         counter = 0
-        for startcoord, endcoord in coordlist:
-            if startcoord >= genelist[i][0] and endcoord <= genelist[i][1]:
+        uniref50list, uniref90list = [], []
+        for hit in hitlist: 
+            if hit.qstart >= genelist[i][0] and hit.qend <= genelist[i][1] and hit.sstrand == wsign:
                 counter += 1
+                uniref50, uniref90 = hit.uniref50[ hit.uniref50.rindex('_')+1 : ], hit.uniref90[ hit.uniref90.rindex('_')+1 : ]
+                uniref50list.append( uniref50 )
+                uniref90list.append( uniref90 )
+        uniref50_format = ','.join( [ str(x) + ':' + str(y) for x, y in Counter( uniref50list ).most_common( 3 )] )
+        uniref90_format = ','.join( [ str(x) + ':' + str(y) for x, y in Counter( uniref90list).most_common( 3 )] )
+        genelist[i].append( sign )
         genelist[i].append(float(counter))
+        genelist[i].append( uniref50_format )
+        genelist[i].append( uniref90_format )
     return genelist
 
 
@@ -168,8 +181,10 @@ def writegff( contig, posgenelist, neggenelist ):
         gffrow.score = gene[3]
         gffrow.strand = gene[2]
         gffrow.frame = '0'
-        gffrow.attribute = 'ID=' + contig + '_' + str(counter)
-        #gffrow.genenum( gffrow.attribute )
+        ID = 'ID=' + contig + '_' + str(counter)
+        Uniref50 = 'Uniref50=' + gene[4]
+        Uniref90 = 'Uniref90=' + gene[5]
+        gffrow.attribute = ';'.join( [ID, Uniref50, Uniref90] )
         counter += 1
         gffline = printgff( gffrow )
         gfflist.append( gffline )
@@ -192,8 +207,8 @@ def main():
                 neggrouplist = coords2groups( negcoordlist, args.overlap )
                 posgenelist = groups2genes( posgrouplist, args.overlap )
                 neggenelist = groups2genes( neggrouplist, args.overlap )
-                posgenecount = countgenes( posgenelist, poscoordlist, '+' )
-                neggenecount = countgenes( neggenelist, negcoordlist, '-' )
+                posgenecount = charac_genes( posgenelist, '+', hitlist )
+                neggenecount = charac_genes( neggenelist, '-', hitlist )
                 gfflist = writegff( contig, posgenecount, neggenecount )
                 for gff in gfflist:
                     writer.writerow( gff )

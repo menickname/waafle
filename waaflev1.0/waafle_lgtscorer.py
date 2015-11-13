@@ -38,12 +38,18 @@ def get_args():
         help="output from waafle_orgscorer",
         )
     parser.add_argument(
-        "-o", "--output",
+        "-o", "--out",
         help="results",
         default="waafle-scoredcontigs.tsv",
         )
     parser.add_argument(
-        "-1", "--onebug",
+        "-s1", "--onebug",
+        type=float,
+        default=0.8
+        )
+    parser.add_argument(
+        "-s2", "--twobug",
+        type=float,
         default=0.8
         )
     args = parser.parse_args()
@@ -91,9 +97,9 @@ def spike_unknown( contigarray, taxaorder ):
     Assign the unknown values if it has already been called,
     or generate a new unknown.
     """
-    final_contigarray = np.array( contigarray )
+    final_contigarray = np.copy( contigarray )
     final_taxaorder = [item for item in taxaorder ]
-    numorgs, numgenes = np.shape( final_contigarray )
+    numorgs, numgenes = final_contigarray.shape
     if numgenes == 0:
         return final_contigarray, final_taxaorder
     else:
@@ -111,22 +117,25 @@ def spike_unknown( contigarray, taxaorder ):
             final_contigarray = np.append( final_contigarray, [unknown], axis=0 )
             final_taxaorder.append( 'unknown' )
             return final_contigarray, final_taxaorder
-
-            
+           
+ 
 def generate_array( taxalist, genelist, target_taxon ):
+    """
+    Create the row for an array, which represents all scores for 1 taxon across all genes.
+    """
     genelist_sort = sorted( genelist )
-    initarray = np.zeros( len( genelist_sort ) )
+    initrow = [0]*len( genelist_sort )
     for taxon in taxalist:
         if target_taxon == taxon.taxa:
             for i in range( len( genelist_sort ) ):
                 if taxon.gene == genelist_sort[i]:
-                    initarray[i] = taxon.score
-    return initarray
+                    initrow[i] = taxon.score
+    return initrow
 
 
 def generate_tables( taxalist ):
     """
-    Return all the genes in the contig in an array.
+    Returns an array for all scores across all bugs and genes in the contig.
     """
     taxaset, geneset = set([]), set([])
     for taxa in taxalist:
@@ -141,6 +150,10 @@ def generate_tables( taxalist ):
 
 
 def account_overlap( contigarray, overlapset  ):
+    """
+    If genes on different strands overlap, isolate the corresponding columns and take the average.
+    Mask the array as well in order to delete the columns that correspond to those columns.
+    """
     newmaskarray = np.copy( contigarray )
     numbugs, numgenes = contigarray.shape
     replacement_dict = {}
@@ -165,25 +178,110 @@ def account_overlap( contigarray, overlapset  ):
             else:
                 newcontigarray = np.insert( newcontigarray, index, replacement_dict[index], axis=1 )
     else:
-        newcontigarray = replacement_dict[0]
+        newcontigarray = np.transpose([replacement_dict[0]])
     return newcontigarray
         
 
 def calc_onebug( array, bugindex ):
     """
-    Calculates the one bug score. High scores indicate that contig is likely explained by one taxa.
+    Calculates the one bug score. Equals the maximum of the minimum of scores across all bugs per gene.
+    High scores indicate that contig is likely explained by one taxa.
     """
     onebugscore = np.max( np.amin( array, axis=1 ) )
     indices = [i for i,j in enumerate( list(np.amin(array, axis=1) ) ) if j==onebugscore]
     onebuglist = [bugindex[index] for index in indices]
     return onebugscore, onebuglist
 
-def calc_complement( array, bugindex ):
-    """
-    """
-    pass
 
+def calc_twobug( array, bugindex ):
+    """
+    Calculates the complement score. Equals the minimum of the maximum of scores across all genes per pair of bugs.
+    High scores indicate that contig is likely explained by two taxa.
+    """
+    dict_complement = {}
+    for i in range( array.shape[0]-1 ):
+        bug1 = array[i, :]
+        for j in range( i+1, array.shape[0] ):
+            bug2 = array[j, :]
+            twobugarray = np.array( [bug1, bug2] )
+            complement = np.min(np.amax(twobugarray, axis=0))
+            bugnames = str(bugindex[i]) + '-' + str(bugindex[j])
+            dict_complement[bugnames] = complement
+    complement_sorted = sorted( dict_complement.items(), key=lambda x: x[1], reverse=True )
+    twobugscore = complement_sorted[0][1]
+    twobuglist = []
+    for pair in complement_sorted:
+        if pair[1] == twobugscore:
+            twobuglist.append( pair[0] )
+        elif pair[1] < twobugscore:
+            break
+    return twobugscore, twobuglist
+
+
+def calc_donorrecip( contigarray, taxaorder, orgpair ):
+    """
+    Determines donor and recipient if there are 2 transitions, and the outer genes are from the same bug. (For eg, "ABA").
+    The bug in between (eg. "B") is the donor. The bug that explains the outside genes (eg. "A") is the recipient.
+    If there is only 1 transition, we call it "unknown". If there is more than 1 transition, we call it a "hybrid."
+    """
+    top_one, top_two = orgpair[0].split('-')[0], orgpair[0].split('-')[1]
+    index_one, index_two = taxaorder.index( top_one ), taxaorder.index( top_two )
+    array_one, array_two = contigarray[index_one, :], contigarray[index_two, :]
+    twobugmax = np.amax( np.array( [array_one, array_two] ), axis=0 )
+    element_list, shift_counter = [], 0
+    for i in range( len( twobugmax ) ):
+        element = twobugmax[i]
+        one_element, two_element = array_one[i], array_two[i]
+        if element == one_element:
+            element_list.append( top_one )
+            state = top_one
+        else:
+            element_list.append( top_two )
+            state = top_two
+        if i != 0:
+            if element_list[i-1] != state:
+                shift_counter += 1
+    if shift_counter == 2 and element_list[0] == element_list[len( element_list ) - 1]:
+        recipient = element_list[0]
+        if recipient == top_one:
+            donor = top_two
+        else:
+            donor = top_one
+    elif shift_counter > 2:
+        recipient, donor = 'hybrid', 'hybrid' 
+    elif shift_counter == 1:
+        recipient, donor = 'unknown', 'unknown'
+    return recipient, donor
     
+
+def rank_ambiguous( onebugscore, onebuglist, twobugscore, orgpair ):
+    """
+    If the contig cannot be called "noLGT" or "LGT", decide which one it is closer to and call ambiguous.
+    """
+    if onebugscore >= twobugscore:
+        score = onebugscore
+        org = onebuglist
+        status = "ambiguous-NoLGT"
+    else:
+        score = twobugscore
+        org = orgpair
+        status = "ambiguous-LGT"
+    return status, score, org
+
+
+def print_result( contig, status, score, orgs, recipient, donor ):
+    """
+    Print out the results in a neat list.
+    """
+    orglist = []
+    if status == "ambiguous-NoLGT" or status == "NoLGT":
+        if len(orgs) > 1:
+            if len(orgs) > 3:
+                orglist = orgs[0:3]
+                orglist.append( str(len( orgs) - 1 -3 ) + ' other taxa with same score' )
+                orgs = orglist
+    finalorgs = ';'.join( orgs )
+    return [str(x) for x in [contig, status, score, finalorgs, recipient, donor] ]
     
 
 # ---------------------------------------------------------------
@@ -192,31 +290,42 @@ def calc_complement( array, bugindex ):
 
 def main():
     """
-    1. Generate array tables for each contig.
-    2. Determine if the contig has genes on opposite strands.
-    3. If so, determine if these genes overlap.
-    4. From 3, collapse those 2 genes into 1 column within the array. Average scores across those 2 columns.
-    5. For all contigs, perform LGT algorithm.
+    1. Generate array tables for each contig. If the contig has genes on opposite strands, check if they overlap.
+    2. If so, generate a new array table where those genes are merged.
+    3. Separate out contigs with only 1 taxa or gene.
+    4. For remaining contigs, perform LGT algorithm.
     """
     args = get_args()
-    for contig, taxalist in wu.iter_contig_taxa( args.input ):
-        contigarray, taxaorder = generate_tables( taxalist )
-        print( contig )
-        if count_strands( taxalist ) == 2:
-            gene_status, overlapgenes = find_overlap_genes( taxalist )
-            if gene_status == "overlap":
-                contigarray = account_overlap( contigarray, overlapgenes )
-        
-        spikearray, spikeorder = spike_unknown( contigarray, taxaorder )
-        numgenes, numbugs = spikearray.shape
-        onebugscore, onebuglist = calc_onebug( spikearray, spikeorder )
-        if onebugscore >= args.onebug or numgenes == 1:
-            #call as one taxa/no lgt
-            pass
-        else:
-            calc_complement( spikearray, spikeorder )
+    with wu.try_open( args.out, "w" ) as fh:
+        writer = csv.writer( fh, dialect="excel-tab" )
+        writer.writerow( ['contig', 'status', 'score', 'taxa', 'receipient', 'donor'] )
+        for contig, taxalist in wu.iter_contig_taxa( args.input ):
+            contigarray, taxaorder = generate_tables( taxalist )
+            recipient, donor = "NA", "NA"
 
+            if count_strands( taxalist ) == 2:
+                gene_status, overlapgenes = find_overlap_genes( taxalist )
+                if gene_status == "overlap":
+                    contigarray = account_overlap( contigarray, overlapgenes )
+            
+            spikearray, spikeorder = spike_unknown( contigarray, taxaorder )
+            onebugscore, onebuglist = calc_onebug( spikearray, spikeorder )
+            numbugs, numgenes = spikearray.shape
         
+            if onebugscore >= args.onebug or numgenes == 1:
+                score, taxa = onebugscore, onebuglist
+                status = "NoLGT"
+            else:
+                twobugscore, orgpair = calc_twobug( spikearray, spikeorder )
+                if twobugscore >= args.twobug:
+                    score, taxa = twobugscore, orgpair
+                    recipient, donor = calc_donorrecip( spikearray, spikeorder, orgpair )
+                    status = "LGT"
+                else:
+                    status, score, taxa = rank_ambiguous( onebugscore, onebuglist, twobugscore, orgpair )
+        
+            result_line = print_result( contig, status, score, taxa, recipient, donor )
+            writer.writerow( result_line )
+
 if __name__ == "__main__":
     main()
-

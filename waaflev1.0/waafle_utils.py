@@ -63,6 +63,9 @@ c_taxafields = [
     ["score", float],
     ["percid", float],
     ["genecov", float],
+    ["uniref50", str],
+    ["uniref90", str],
+    ["hits", int],
 ]
 
 # ---------------------------------------------------------------
@@ -142,6 +145,7 @@ class GFF( ):
                 if label == 'ID':
                     lastindex = descriptor.rindex( '_' )
                     self.genenum = int( descriptor[lastindex + 1:] )
+
 
 class Taxa( ):
     """
