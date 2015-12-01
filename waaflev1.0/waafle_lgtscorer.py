@@ -52,6 +52,12 @@ def get_args():
         type=float,
         default=0.8
         )
+    parser.add_argument(
+        "-u", "--unknown",
+        help="By default this is 'False'. If you want to output unknowns, type 'True'.",
+        type=bool,
+        default=False
+        )
     args = parser.parse_args()
     return args
 
@@ -81,7 +87,7 @@ def find_overlap_genes( taxalist ):
         first_taxa = taxalist[i]
         next_taxa = taxalist[i + 1]
         if first_taxa.gene != next_taxa.gene and first_taxa.strand != next_taxa.strand:
-            overlap = wu.calc_overlap( first_taxa.start, first_taxa.end, next_taxa.start, next_taxa.end )
+            overlap = wu.calc_overlap( first_taxa.genestart, first_taxa.geneend, next_taxa.genestart, next_taxa.geneend )
             if overlap > 0.5:
                 overlapset.add( (first_taxa.gene, next_taxa.gene) )
     
@@ -91,7 +97,7 @@ def find_overlap_genes( taxalist ):
         return "overlap", overlapset
 
 
-def spike_unknown( contigarray, taxaorder ):
+def spike_unknown( contigarray, taxaorder, unknown ):
     """
     Spike in the unknown organism.
     Assign the unknown values if it has already been called,
@@ -100,7 +106,7 @@ def spike_unknown( contigarray, taxaorder ):
     final_contigarray = np.copy( contigarray )
     final_taxaorder = [item for item in taxaorder ]
     numorgs, numgenes = final_contigarray.shape
-    if numgenes == 0:
+    if numgenes == 0 or unknown:
         return final_contigarray, final_taxaorder
     else:
         if "unknown" in taxaorder:
@@ -198,7 +204,7 @@ def calc_twobug( array, bugindex ):
     Calculates the complement score. Equals the minimum of the maximum of scores across all genes per pair of bugs.
     High scores indicate that contig is likely explained by two taxa.
     """
-    dict_complement = {}
+    complementlist = []
     for i in range( array.shape[0]-1 ):
         bug1 = array[i, :]
         for j in range( i+1, array.shape[0] ):
@@ -206,8 +212,8 @@ def calc_twobug( array, bugindex ):
             twobugarray = np.array( [bug1, bug2] )
             complement = np.min(np.amax(twobugarray, axis=0))
             bugnames = str(bugindex[i]) + '-' + str(bugindex[j])
-            dict_complement[bugnames] = complement
-    complement_sorted = sorted( dict_complement.items(), key=lambda x: x[1], reverse=True )
+            complementlist.append( [ bugnames, complement ] )
+    complement_sorted = sorted( complementlist, key=lambda x: x[1], reverse=True )
     twobugscore = complement_sorted[0][1]
     twobuglist = []
     for pair in complement_sorted:
@@ -308,11 +314,11 @@ def main():
                 if gene_status == "overlap":
                     contigarray = account_overlap( contigarray, overlapgenes )
             
-            spikearray, spikeorder = spike_unknown( contigarray, taxaorder )
+            spikearray, spikeorder = spike_unknown( contigarray, taxaorder, args.unknown )
             onebugscore, onebuglist = calc_onebug( spikearray, spikeorder )
             numbugs, numgenes = spikearray.shape
-        
-            if onebugscore >= args.onebug or numgenes == 1:
+                    
+            if onebugscore >= args.onebug or numgenes == 1 or numbugs == 1:
                 score, taxa = onebugscore, onebuglist
                 status = "NoLGT"
             else:
@@ -326,6 +332,7 @@ def main():
         
             result_line = print_result( contig, status, score, taxa, recipient, donor )
             writer.writerow( result_line )
+            
 
 if __name__ == "__main__":
     main()

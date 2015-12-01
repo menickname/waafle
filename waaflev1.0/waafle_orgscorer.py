@@ -61,98 +61,30 @@ def get_args():
         default="waafle-scoredorgs.tsv",
         help="output for scored taxa",
         )
+    parser.add_argument(
+        "-cov", "--coverage",
+        help="cutoff for gene coverage or subject coverage when grouping hits",
+        default=0,
+        type=float,
+        )
+    parser.add_argument(
+        "-lap", "--overlap",
+        help="amount of overlap to include hit in a gene",
+        default=0.5,
+        type=float,
+        )
     args = parser.parse_args()
     return args
-
-
-def score_taxa( hitlist, genelen ):
-    """
-    Loop through hits that correspond to a single taxon and gene.
-    Calculate a score for each hit. Score = Percent identity * Coverage.
-    Assign the highest score (from any hit) to each base position covered by all hits.
-    Calculate a final score by averaging these scores. 
-    """
-    dict_indexscore = {}
-    for hit in hitlist:
-	groupcov = hit.length/float( genelen )
-        percid = hit.pident/float( 100 )
-	score = float( groupcov ) * percid
-	info = [score, percid, groupcov]
-	for coordinate in range( hit.qstart, hit.qend + 1 ):
-	    if dict_indexscore.get( coordinate, [0, 0, 0] )[0] != 0:
-		oldscore = dict_indexscore[coordinate][0]
-		if oldscore < score:
-			dict_indexscore[coordinate] = info
-	    else:
-		dict_indexscore[coordinate] = info
-
-    finalscore = np.mean( [x[1][0] for x in dict_indexscore.items()] )
-    finalpercid = np.mean( [x[1][1] for x in dict_indexscore.items()] )
-    finalgroupcov = np.mean( [x[1][2] for x in dict_indexscore.items()] )
-    index_sort = sorted( dict_indexscore.keys() )
-    finalstart = index_sort[0]
-    finalend = index_sort[len(index_sort)-1]
-    return finalscore, finalpercid, finalgroupcov, finalstart, finalend
-
-	
-def hits2orgs( contig, gene, hitlist, taxalevel ):
-    """
-    Assign hits to a gene based on coordinates and strandedness.
-    Assign hits within that gene to taxa.
-    Generate taxa classes and return the list.
-    """
-    genelen = gene.end - gene.start + 1
-    genehits = []
-    for hit in hitlist:
-        overlap = wu.calc_overlap( hit.qstart, hit.qend, gene.start, gene.end )
-        if gene.strand == "-":
-            genestrand = "minus"
-        else:
-            genestrand = "plus"
-        if hit.sstrand == genestrand and overlap >= 0.5:
-            genehits.append( hit ) 
-    
-    dict_orghits = {}
-    uniref50_list, uniref90_list = [], []
-    for hit in genehits:
-        uniref50_list.append( hit.uniref50[ hit.uniref50.rindex('_') + 1 : ] )
-        uniref90_list.append( hit.uniref90[ hit.uniref90.rindex('_') + 1: ] )
-        org = hit.taxonomy[taxalevel]
-        dict_orghits.setdefault( org, [] ).append( hit )
-    uniref50_format = ','.join( [ str(x) + ':' + str(y) for x, y in Counter( uniref50_list ).most_common( 3 )] )
-    uniref90_format = ','.join( [ str(x) + ':' + str(y) for x, y in Counter( uniref90_list).most_common( 3 )] )
-    
-    taxalist = []
-    for org in dict_orghits:
-        taxa = wu.Taxa( [] )
-        taxa.taxa = org
-        taxa.strand = gene.strand
-        taxa.score, taxa.percid, taxa.genecov, taxa.start, taxa.end = score_taxa( dict_orghits[org], genelen )
-        taxa.gene = gene.genenum
-        taxa.contig = contig
-        taxa.uniref50 = uniref50_format
-        taxa.uniref90 = uniref90_format
-        taxa.hits = len(genehits)
-        taxalist.append( taxa )
-    if len( taxalist ) == 0:
-        taxa = wu.Taxa( [] )
-        taxa.taxa = "unknown"
-        taxa.strand = gene.strand
-        taxa.score, taxa.percid, taxa.genecov, taxa.start, taxa.end = 0, 0, 0, 0, 0
-        taxa.uniref50, taxa.uniref90, taxa.hits = "NA", "NA", 0
-        taxa.gene = gene.genenum
-        taxa.contig = contig
-        taxalist.append( taxa )
-    return taxalist
-   
- 	    
+            
 def print_taxa( taxa ):
     orderedlist = [ str( taxa.contig ),
                     str( taxa.gene ),
                     str( taxa.strand ),
-                    str( taxa.start ),
-                    str( taxa.end ),
+                    str( taxa.genestart ),
+                    str( taxa.geneend ),
                     str( taxa.taxa ),
+                    str( taxa.taxastart ),
+                    str( taxa.taxaend ),
                     str( taxa.score ),
                     str( taxa.percid ),
                     str( taxa.genecov ),
@@ -162,30 +94,71 @@ def print_taxa( taxa ):
                     ]
     return orderedlist
 
+def hits2taxa( contig, gene, genehits, taxalevel, uniref50, uniref90 ):
+    """
+    Group hits that correspond to specific taxa.
+    If the gene did not have hits to begin with, output an "unknown" taxa with score 0.
+    If the gene has hits that corresponds to orgs, score the orgs and output the taxa annotations.
+    """
+    dict_orghits = {}
+    for hit in genehits:
+        taxa = hit.taxonomy[taxalevel]
+        dict_orghits.setdefault( taxa, [] ).append( hit )
+    taxalist = []
+    if len( dict_orghits.keys() ) == 0:
+        taxa = wu.Taxa( [] )
+        taxa.contig = contig
+        taxa.gene, taxa.strand, taxa.genestart, taxa.geneend = gene.genenum, gene.strand, gene.start, gene.end
+        taxa.taxa = "Unknown"
+        taxa.score, taxa.percid, taxa.genecov, taxa.taxastart, taxa.taxaend = 0, 0, 0, "NA", "NA"
+        taxa.uniref50, taxa.uniref90 = uniref50, uniref90
+        taxa.hits = 0
+        taxalist.append( print_taxa( taxa ) )
+    else:
+        for org in dict_orghits:
+            orghits = dict_orghits[org]
+            taxa = wu.Taxa( [] )
+            taxa.contig = contig
+            taxa.gene, taxa.strand, taxa.genestart, taxa.geneend = gene.genenum, gene.strand, gene.start, gene.end
+            taxa.taxa = org
+            taxa.score, taxa.percid, taxa.genecov, taxa.taxastart, taxa.taxaend = wu.score_hits( orghits, gene.start, gene.end )
+            taxa.uniref50, taxa.uniref90 = uniref50, uniref90
+            taxa.hits = len( dict_orghits[org] )
+            taxalist.append( print_taxa( taxa ) )
+    return taxalist
+
 # ---------------------------------------------------------------
 # main
 # ---------------------------------------------------------------
 
 def main():
+    """
+    This script does:
+    1) Groups hits into genes for contigs that have genes called.
+    2) Groups hits into orgs per gene.
+    3) Score each org.
+    4) Prints out the taxa into a new file.
+    """
     args = get_args()
     taxalevel = c__dict_taxa[args.taxa]
 
-    dict_contiggenes = {}
-    for contig, genelist in wu.iter_contig_genes( args.gff ):
-        dict_contiggenes[contig] = genelist
-
     with wu.try_open( args.out, "w" ) as fh:
         writer = csv.writer( fh, dialect="excel-tab" )
-        writer.writerow( ["contig", "gene", "strand", "start", "end", "taxa", "score", "percid", "genecov", "uniref50", "uniref90", "numhits"] ) 
-        for contig, hitlist in wu.iter_contig_hits( args.blast ):
+        writer.writerow( ["contig", "genenum", "strand", "genestart", "geneend", "taxa", "taxastart", "taxaend", "score", "percid", "coverage", "uniref50", "uniref90", "orghitnum"] )
+       
+        dict_contiggenes = {}
+        for contig, contiggenes in wu.iter_contig_genes( args.gff ):
+            dict_contiggenes[contig] = contiggenes
+        for contig, contighits in wu.iter_contig_hits( args.blast ):
             if contig in dict_contiggenes:
-                genes = dict_contiggenes[contig]
-                for gene in genes:
-                    taxalist = hits2orgs( contig, gene, hitlist, taxalevel )
+                contiggenes = dict_contiggenes[contig]
+                for gene in contiggenes:
+                    genehits, info = wu.hits2genes( gene.start, gene.end, gene.strand, contighits, args.overlap, args.coverage )
+                    taxalist = hits2taxa( contig, gene, genehits, taxalevel, info[1], info[2] )
                     for taxa in taxalist:
-                        taxaline = print_taxa( taxa )
-                        writer.writerow( taxaline )
+                        writer.writerow( taxa )
     fh.close()
+    
 
 if __name__ == "__main__":
     main()

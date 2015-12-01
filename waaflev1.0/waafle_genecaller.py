@@ -55,29 +55,45 @@ def get_args():
         help="waafle gene calls",
         )
     parser.add_argument(
-        "-l", "--overlap",
+        "-lap", "--overlap",
         default=0.5,
         type=float,
         help="overlap at which to merge hits into genes",
         )
+    parser.add_argument(
+        "-l", "--length",
+        default=0,
+        type=float,
+        help="length constraint for genes",
+        )
+    parser.add_argument(
+        "-scov_h", "--scov_hits",
+        default=0,
+        type=float,
+        help="scoverage filter for hits",
+        )
+    parser.add_argument(
+        "-scov_g", "--scov_genes",
+        default=0,
+        type=float,
+        help="scoverage filter for genes",
+        )
     args = parser.parse_args()
     return args
 
-
-def hits2coords( hitlist ):
+def hits2coords( hitlist, scov ):
     """
-    For a list of hits, get start/end sites for positive and negative strands (two lists).
+    For a list of hits, filter by some metric (current method: scoverage )
+    Get start/end sites for positive and negative strands (two lists).
     """
     poscoordslist, negcoordslist = [], []
     for hit in hitlist:
-	start = hit.qstart
-	end = hit.qend
-        if hit.sstrand == 'minus':
-            negcoordslist.append( [start, end] )
-        else:
-            poscoordslist.append( [start, end] )
+        if hit.scov_modified >= scov:
+            if hit.sstrand == 'minus':
+                negcoordslist.append( [hit.qstart, hit.qend] )
+            else:
+                poscoordslist.append( [hit.qstart, hit.qend] )
     return poscoordslist, negcoordslist
-
 
 def coords2groups( coordslist, overlap_thresh ):
     """
@@ -95,15 +111,14 @@ def coords2groups( coordslist, overlap_thresh ):
                 if overlap >= overlap_thresh:
                    coord_sorted = sorted( [groups[i][0], groups[i][1], start, end] )
                    groups[i] = [coord_sorted[0], coord_sorted[3]]
-                   group_add = True
-                    
+                   group_add = True    
                 if i == len( groups ) - 1 and group_add == False:
                    groups.append( [start, end] )
     return groups
 
-
 def groups2genes( groups, overlap_thresh ):
     """
+    Sort groups by start/end coordinates.
     Bin a list of groups into genes by start/end coordinates (of groups).
     """
     genes = []
@@ -116,33 +131,24 @@ def groups2genes( groups, overlap_thresh ):
         genes = coords2groups( groups, overlap_thresh )
     return genes
 
-
-def charac_genes( genelist, sign, hitlist ): #Add in assign Unirefs
+def filter_genes( genelist, sign, hitlist, overlap, length, scov_genes, scov_hits ):
     """
-    Count how many hits are associated with each gene.
-    Return the gene coordinates (start and end), strand, and count as a list. 
+    First, group hits into genes.
+    Second, filter genes based on length, scoverage, or # of BLAST hits.
     """
-    if sign == '+':
-        wsign = 'plus'
-    else:
-        wsign = 'minus'
-    for i in range( len( genelist ) ):
-        counter = 0
-        uniref50list, uniref90list = [], []
-        for hit in hitlist: 
-            if hit.qstart >= genelist[i][0] and hit.qend <= genelist[i][1] and hit.sstrand == wsign:
-                counter += 1
-                uniref50, uniref90 = hit.uniref50[ hit.uniref50.rindex('_')+1 : ], hit.uniref90[ hit.uniref90.rindex('_')+1 : ]
-                uniref50list.append( uniref50 )
-                uniref90list.append( uniref90 )
-        uniref50_format = ','.join( [ str(x) + ':' + str(y) for x, y in Counter( uniref50list ).most_common( 3 )] )
-        uniref90_format = ','.join( [ str(x) + ':' + str(y) for x, y in Counter( uniref90list).most_common( 3 )] )
-        genelist[i].append( sign )
-        genelist[i].append(float(counter))
-        genelist[i].append( uniref50_format )
-        genelist[i].append( uniref90_format )
-    return genelist
-
+    genelist_filtered = []
+    for start, end in genelist:
+        gene_hits, gene_info = wu.hits2genes( start, end, sign, hitlist, overlap, scov_hits )
+	genelen = end - start + 1
+	gene_score, gene_percid, gene_cov, gene_starts, gene_ends = wu.score_hits( gene_hits, start, end )
+            
+        #if genelen >= length:
+        #    genelist_filtered.append( [start, end, sign, gene_score, gene_info[1], gene_info[2]] )
+        if gene_cov >= scov_genes:
+            genelist_filtered.append( [start, end, sign, gene_score, gene_info[1], gene_info[2]] )
+        #if gene_info[1] > some_count:
+        #    genelist_filtered.append( [start, end, sign, gene_score, gene_info[1], gene_info[2]] )
+    return genelist_filtered
 
 def printgff( gffrow ):
     """
@@ -160,7 +166,6 @@ def printgff( gffrow ):
                 ]
     return gfflist
 
-
 def writegff( contig, posgenelist, neggenelist ):
     """
     For each contig, sort all genes by start coordinate regardless of strand.
@@ -169,7 +174,6 @@ def writegff( contig, posgenelist, neggenelist ):
     allgenelist = posgenelist + neggenelist
     allgenelist.sort( key=itemgetter( 0 ) )
     counter = 1
-
     gfflist = []
     for gene in allgenelist: 
         gffrow = wu.GFF( [] )
@@ -196,20 +200,33 @@ def writegff( contig, posgenelist, neggenelist ):
 # ---------------------------------------------------------------
 
 def main():
+    """
+    This script does the following:
+    1) Sorts hits per contig by length and bitscore.
+    2) Separate hits by strand and potentially filter by scoverage_modified.
+    3) Form genes by grouping overlapping hits, and then grouping overlapping groups.
+    4) Group hits by genes to calculate a scores and annotate unirefs.
+    5) Filter genes by length, score, or number of hits.
+    6) Print out gff.
+    """
     args = get_args()
     with wu.try_open( args.out, "w" ) as fh:
             writer = csv.writer( fh, dialect="excel-tab" )
 
             for contig, hitlist in wu.iter_contig_hits( args.input ):
                 hitlist_sorted = sorted( hitlist, key=attrgetter( 'length', 'bitscore' ), reverse=True )
-                poscoordlist, negcoordlist = hits2coords( hitlist_sorted )
+                poscoordlist, negcoordlist = hits2coords( hitlist_sorted, args.scov_hits )
+
                 posgrouplist = coords2groups( poscoordlist, args.overlap )
                 neggrouplist = coords2groups( negcoordlist, args.overlap )
+
                 posgenelist = groups2genes( posgrouplist, args.overlap )
                 neggenelist = groups2genes( neggrouplist, args.overlap )
-                posgenecount = charac_genes( posgenelist, '+', hitlist )
-                neggenecount = charac_genes( neggenelist, '-', hitlist )
-                gfflist = writegff( contig, posgenecount, neggenecount )
+		
+                pos_filtered = filter_genes( posgenelist, '+', hitlist, args.overlap, args.length, args.scov_genes, args.scov_hits )
+                neg_filtered = filter_genes( neggenelist, '-', hitlist, args.overlap, args.length, args.scov_genes, args.scov_hits )
+                               
+                gfflist = writegff( contig, pos_filtered, neg_filtered )
                 for gff in gfflist:
                     writer.writerow( gff )
     
