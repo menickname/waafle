@@ -1,1 +1,0 @@
-blastn -out blastn.out -db /n/huttenhower_lab_nobackup/data/hgt/blast/blast_db/repophlan_31122013_speciescentroids_uniprot.db -query input_file -outfmt '6 qseqid sseqid qlen slen length qstart qend sstart send pident positive gaps evalue bitscore'
