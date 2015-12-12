@@ -1,4 +1,5 @@
 import os, sys
+import waafle_utils as wu
 
 def quote ( string ):
     return "'%s'" % string

@@ -9,7 +9,7 @@ from doit.tools import config_changed
 #-------------------------------------
 
 waafle_loc = '/n/home05/thsu/bitbucket/waafle/waafle_v1.0/'
-CONTIGS = '/n/home05/thsu/bitbucket/waafle/waafle_validation/concatenated_fasta.ffn'
+CONTIGS = '/n/home05/thsu/bitbucket/waafle/waafle_validation/test-fasta.ffn'
 LAP = str(0.5)
 LENGTH = str(0)
 SCOV_H = str(0)
@@ -29,9 +29,8 @@ def task_blast_contigs( ):
 	scriptloc = waafle_loc + script
 	blastpath = '/usr/local/bin/blastn'
 	return {
-        'actions': [ 'python ' + scriptloc + ' -q ' + CONTIGS + ' -d ' + repophlan + ' -b ' + blastpath + ' -e 0 ' + '-o ' + '%(targets)s' ],
+        'actions': [ 'python ' + scriptloc + ' -q ' + CONTIGS + ' -d ' + repophlan + ' -b ' + blastpath + ' -e 1 ' + '-o ' + '%(targets)s' ],
         'targets': ['waafle-blastout.tsv'],
-		'file_dep': [CONTIGS],
         }
 
 def task_call_genes( ):

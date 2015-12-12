@@ -167,7 +167,7 @@ def account_overlap( contigarray, overlapset  ):
     for firstgene, secondgene in overlapset:
         firstindex = firstgene - 1
         newindex = firstgene - counter
-        replacement_dict[ newindex ] = np.average( contigarray[:, firstindex:secondgene], axis=1 )
+        replacement_dict[ newindex ] = np.amax( contigarray[:, firstindex:secondgene], axis=1 )
         counter += 1
         for i in range( numgenes ):
             if i == firstgene - 1 or i == secondgene - 1:
