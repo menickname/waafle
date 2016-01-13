@@ -37,9 +37,9 @@ def task_concatenate_taxa( ):
 
 def task_generate_contigs( ):
     # Generate the contigs
-    generate_contigs = '/n/home05/thsu/bitbucket/waafle/waafle_validation/run.py'
+    generate_contigs = '/n/home05/thsu/bitbucket/waafle/waafle_validation/run_mksyncontig.py'
     return {
-        'actions': [ 'python ' + generate_contigs + ' concatenated_taxa.tsv ' + num_unique_contigs ],
+        'actions': [ 'python ' + generate_contigs + ' concatenated_taxa.tsv ' + str(num_unique_contigs) ],
         'file_dep': ['concatenated_taxa.tsv'],
         }
 
@@ -59,14 +59,28 @@ def task_concatenate_answer( ):
         'targets': ['concatenated_answers.tsv']
         }
 
+def task_concatenate_gff( ):
+    # Concatenate gff
+    files_gff = '*-gff.txt'
+    return {
+        'actions': ['cat ' + files_gff + '> %(targets)s'],
+        'targets': ['concatenated_gff.gff']
+        }
+
 def task_rm_contigs( ):
 	return {
 		'actions': ['rm ' + 'GCF*'],
-		'file_dep':['concatenated_fasta.ffn', 'concatenated_taxa.tsv']
+		'file_dep': ['concatenated_fasta.ffn', 'concatenated_taxa.tsv', 'concatenated_gff.gff']
 	}
 
 def task_rm_files( ):
 	return {
 		'actions': ['rm ' + 'file_*'],
-		'file_dep':['concatenated_fasta.ffn', 'concatenated_taxa.tsv']
+		'file_dep': ['concatenated_fasta.ffn', 'concatenated_taxa.tsv', 'concatenated_gff.gff']
 	}
+
+def task_rm_gff( ):
+    return {
+        'actions': ['rm ' + '*-gff.txt'],
+        'file_dep': ['concatenated_fasta.ffn', 'concatenated_taxa.tsv', 'concatenated_gff.gff']
+    }

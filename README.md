@@ -1,8 +1,8 @@
 WAAFLE
 ====================
-*Widget to Annotate Assemblies and Find LGT Events*
+*Workflow to Annotate Assemblies and Find LGT Events*
 
-Last updated on Sept 29, 2014.
+Last updated on January 13, 2016.
 
 Authors: Tiffany Hsu and Eric A. Franzosa
 
@@ -21,19 +21,16 @@ TBD.
 
 Usage
 =======
-Currently, there are 2 sets of scripts for the actual pipeline, and the
-validation pipeline.
+Currently, there are 4 scripts for the pipeline, and _ scripts
+for the validation pipeline.
 
-###Current Pipeline
-The actual pipeline is located in the 'pipeline' folder. It consists of
+###WAAFLE Pipeline
+The WAAFLE pipeline is located in the 'waafle_v1.0' folder. It consists of
 several steps:
 
-1. Run BLAST against the contigs.
+1. waafle_search.py
 ```
 $ DB=/n/huttenhower_lab_nobackup/data/hgt/blast/blast_db_updated/repophlan_31122013_speciescentroids.db
-$ INPUT=contigs.fasta
-$ OUTPUT=blastn.out 
-$ blastn -db $DB -query $INPUT -out $OUTPUT -outfmt '6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qcovs qcovhsp'
 ```
 
 2. Sort the BLAST hits by name, length (in decreasing order), and bitscore (in decreasing order).

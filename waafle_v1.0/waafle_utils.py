@@ -262,12 +262,9 @@ def calc_overlap( onestart, oneend, twostart, twoend ):
     if onestart - twoend > 0 or twostart - oneend > 0:
         return 0
     else:
-        if onestart < twostart and twoend < oneend or onestart > twostart and oneend < twoend:
-            divisor = float( min( oneend - onestart, twoend - twostart ) )
-        else:
-            divisor = float( min( oneend - onestart + 1, twoend - twostart + 1 ) )
+        divisor = float( min( oneend - onestart + 1, twoend - twostart + 1 ) )
         coord_sorted = sorted( [onestart, oneend, twostart, twoend] )
-        overlap = float( ( coord_sorted[2] - coord_sorted[1] )/divisor )
+        overlap = float( ( coord_sorted[2] - coord_sorted[1] + 1 )/divisor )
         return overlap
 
 def find_ends( indexscore_sort ):

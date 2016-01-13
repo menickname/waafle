@@ -55,10 +55,16 @@ def get_args():
         help="waafle gene calls",
         )
     parser.add_argument(
-        "-lap", "--overlap",
+        "-lap_h", "--overlap_hits",
         default=0.5,
         type=float,
-        help="overlap at which to merge hits into genes",
+        help="overlap at which to merge hits into groups",
+        )
+    parser.add_argument(
+        "-lap_g", "--overlap_genes",
+        default=0.5,
+        type=float,
+        help="overlap at which to merge groups into genes",
         )
     parser.add_argument(
         "-l", "--length",
@@ -139,15 +145,10 @@ def filter_genes( genelist, sign, hitlist, overlap, length, scov_genes, scov_hit
     genelist_filtered = []
     for start, end in genelist:
         gene_hits, gene_info = wu.hits2genes( start, end, sign, hitlist, overlap, scov_hits )
-	genelen = end - start + 1
-	gene_score, gene_percid, gene_cov, gene_starts, gene_ends = wu.score_hits( gene_hits, start, end )
-            
-        #if genelen >= length:
-        #    genelist_filtered.append( [start, end, sign, gene_score, gene_info[1], gene_info[2]] )
-        if gene_cov >= scov_genes:
+        genelen = end - start + 1
+    	gene_score, gene_percid, gene_cov, gene_starts, gene_ends = wu.score_hits( gene_hits, start, end )
+        if gene_cov >= scov_genes and genelen >= length:
             genelist_filtered.append( [start, end, sign, gene_score, gene_info[1], gene_info[2]] )
-        #if gene_info[1] > some_count:
-        #    genelist_filtered.append( [start, end, sign, gene_score, gene_info[1], gene_info[2]] )
     return genelist_filtered
 
 def printgff( gffrow ):
@@ -217,14 +218,14 @@ def main():
                 hitlist_sorted = sorted( hitlist, key=attrgetter( 'length', 'bitscore' ), reverse=True )
                 poscoordlist, negcoordlist = hits2coords( hitlist_sorted, args.scov_hits )
 
-                posgrouplist = coords2groups( poscoordlist, args.overlap )
-                neggrouplist = coords2groups( negcoordlist, args.overlap )
+                posgrouplist = coords2groups( poscoordlist, args.overlap_hits )
+                neggrouplist = coords2groups( negcoordlist, args.overlap_hits )
 
-                posgenelist = groups2genes( posgrouplist, args.overlap )
-                neggenelist = groups2genes( neggrouplist, args.overlap )
+                posgenelist = groups2genes( posgrouplist, args.overlap_genes )
+                neggenelist = groups2genes( neggrouplist, args.overlap_genes )
 		
-                pos_filtered = filter_genes( posgenelist, '+', hitlist, args.overlap, args.length, args.scov_genes, args.scov_hits )
-                neg_filtered = filter_genes( neggenelist, '-', hitlist, args.overlap, args.length, args.scov_genes, args.scov_hits )
+                pos_filtered = filter_genes( posgenelist, '+', hitlist, args.overlap_hits, args.length, args.scov_genes, args.scov_hits )
+                neg_filtered = filter_genes( neggenelist, '-', hitlist, args.overlap_hits, args.length, args.scov_genes, args.scov_hits )
                                
                 gfflist = writegff( contig, pos_filtered, neg_filtered )
                 for gff in gfflist:

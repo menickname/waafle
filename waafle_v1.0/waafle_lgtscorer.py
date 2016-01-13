@@ -82,19 +82,40 @@ def find_overlap_genes( taxalist ):
     For contigs without overlapping genes, return "False."
     For contigs with overlapping genes, return "True", and the set of genes overlapping.
     """
+    overlaplist= []
     for i in range( len( taxalist ) - 1 ):
-        overlapset = set([])
         first_taxa = taxalist[i]
         next_taxa = taxalist[i + 1]
         if first_taxa.gene != next_taxa.gene and first_taxa.strand != next_taxa.strand:
             overlap = wu.calc_overlap( first_taxa.genestart, first_taxa.geneend, next_taxa.genestart, next_taxa.geneend )
             if overlap > 0.5:
-                overlapset.add( (first_taxa.gene, next_taxa.gene) )
-    
-    if len( overlapset ) == 0:
+                overlaplist.append( [first_taxa.gene, next_taxa.gene] )
+    if len( overlaplist ) == 0:
         return "no_overlap", None
+    elif len( overlaplist ) == 1:
+        return "overlap", overlaplist
     else:
-        return "overlap", overlapset
+        newoverlaplist = []
+        combineset = set([])
+        for i in range( len( overlaplist )-1 ):
+            pair1val1 = overlaplist[i][0]
+            pair1val2 = overlaplist[i][1]
+            pair2val1 = overlaplist[i+1][0]
+            pair2val2 = overlaplist[i+1][1]
+            if pair1val2 == pair2val1:
+                combineset = combineset | set( overlaplist[i] + overlaplist[i+1] )
+            else:
+                if len( combineset ) == 0:
+                    newoverlaplist.append( overlaplist[i] )
+                else:
+                    newoverlaplist.append( sorted( list(combineset) ) )
+                    combineset = set([])
+            if i+2 == len( overlaplist ):
+                if len( combineset ) == 0:
+                    newoverlaplist.append( overlaplist[i+1] )
+                else:
+                    newoverlaplist.append( sorted( list(combineset) ) )
+        return "overlap", newoverlaplist
 
 
 def spike_unknown( contigarray, taxaorder, unknown ):
@@ -157,36 +178,36 @@ def generate_tables( taxalist ):
 
 def account_overlap( contigarray, overlapset  ):
     """
-    If genes on different strands overlap, isolate the corresponding columns and take the average.
-    Mask the array as well in order to delete the columns that correspond to those columns.
+    If genes on different strands overlap, isolate the corresponding columns and take the max.
+    Generate new array with combined columns.
     """
-    newmaskarray = np.copy( contigarray )
     numbugs, numgenes = contigarray.shape
-    replacement_dict = {}
-    counter = 1
-    for firstgene, secondgene in overlapset:
-        firstindex = firstgene - 1
-        newindex = firstgene - counter
-        replacement_dict[ newindex ] = np.amax( contigarray[:, firstindex:secondgene], axis=1 )
-        counter += 1
-        for i in range( numgenes ):
-            if i == firstgene - 1 or i == secondgene - 1:
-                newmaskarray[:, i] = 1
-            else:
-                newmaskarray[:, i] = 0
-
-    if numgenes > 2:
-        newcontigarray = ma.compress_cols( ma.array( np.copy( contigarray ), mask=newmaskarray ) )
-        for index in replacement_dict.keys():
-            numrows, numcol = newcontigarray.shape
-            if index - 1 == numcol:
-                newcontigarray = np.append( newcontigarray, replacement_dict[index], axis=1 )
-            else:
-                newcontigarray = np.insert( newcontigarray, index, replacement_dict[index], axis=1 )
-    else:
-        newcontigarray = np.transpose([replacement_dict[0]])
+    #Get columns we will want
+    collist = []
+    for i in range( numgenes ):
+        collist.append( i )
+        for genes in overlapset:
+            geneindex = [x-1 for x in genes]
+            firstgene = geneindex[0]
+            lastgene = geneindex[len( genes ) - 1]
+            if i in geneindex:
+                collist.pop( )
+                if i == firstgene:
+                    collist.append( geneindex ) 
+    #Generate new contig array with replaced columns
+    newcontigarray = np.zeros( (numbugs, len( collist )) )
+    for i in range( len( collist ) ):
+        genecol = collist[i]
+        if type(genecol) == list:
+            firstindex = genecol[0]
+            secondindex = genecol[ len(genecol) - 1 ]
+            colvals = np.amax( contigarray[:, firstindex:secondindex + 1], axis=1 )
+            newcontigarray[:, i] = colvals
+        else:
+            colvals = contigarray[:, genecol]
+            newcontigarray[:, i] = colvals
     return newcontigarray
-        
+
 
 def calc_onebug( array, bugindex ):
     """
@@ -313,7 +334,7 @@ def main():
                 gene_status, overlapgenes = find_overlap_genes( taxalist )
                 if gene_status == "overlap":
                     contigarray = account_overlap( contigarray, overlapgenes )
-            
+           
             spikearray, spikeorder = spike_unknown( contigarray, taxaorder, args.unknown )
             onebugscore, onebuglist = calc_onebug( spikearray, spikeorder )
             numbugs, numgenes = spikearray.shape
@@ -333,6 +354,5 @@ def main():
             result_line = print_result( contig, status, score, taxa, recipient, donor )
             writer.writerow( result_line )
             
-
 if __name__ == "__main__":
     main()

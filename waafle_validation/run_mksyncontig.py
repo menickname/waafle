@@ -9,7 +9,7 @@ for line in open( sys.argv[1] ):
     items = map( quote, items )
     command = [
         "python",
-        "fakemake.py",
+        "mksyncontig.py",
         "--donor", items[1], 
         "--recipient", items[2], 
         "--donortaxa", items[3], 

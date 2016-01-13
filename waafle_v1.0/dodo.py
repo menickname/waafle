@@ -9,8 +9,9 @@ from doit.tools import config_changed
 #-------------------------------------
 
 waafle_loc = '/n/home05/thsu/bitbucket/waafle/waafle_v1.0/'
-CONTIGS = '/n/home05/thsu/bitbucket/waafle/waafle_validation/test-fasta.ffn'
-LAP = str(0.5)
+CONTIGS = '/n/home05/thsu/bitbucket/waafle/waafle_validation/1000contigs_1/concatenated_fasta.ffn'
+LAP_H = str(0.5)
+LAP_G = str(0.5)
 LENGTH = str(0)
 SCOV_H = str(0)
 SCOV_G = str(0)
@@ -38,7 +39,7 @@ def task_call_genes( ):
 	script = "waafle_genecaller.py"
 	scriptloc = waafle_loc + script
 	return {
-		'actions': ['python ' + scriptloc + ' -i ' + 'waafle-blastout.tsv' + ' -o ' + '%(targets)s ' + ' -lap ' + LAP + ' -l ' + LENGTH + ' -scov_h ' + SCOV_H + ' -scov_g ' + SCOV_G ],
+		'actions': ['python ' + scriptloc + ' -i ' + 'waafle-blastout.tsv' + ' -o ' + '%(targets)s ' + ' -lap_h ' + LAP_H + ' -lap_g ' + LAP_G + ' -l ' + LENGTH + ' -scov_h ' + SCOV_H + ' -scov_g ' + SCOV_G ],
 		'targets': ['waafle-genes.gff'],
 		'file_dep': ['waafle-blastout.tsv']
 		}
