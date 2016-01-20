@@ -296,7 +296,7 @@ def rank_ambiguous( onebugscore, onebuglist, twobugscore, orgpair ):
     return status, score, org
 
 
-def print_result( contig, status, score, orgs, recipient, donor ):
+def print_result( contig, length, status, score, orgs, recipient, donor ):
     """
     Print out the results in a neat list.
     """
@@ -308,7 +308,7 @@ def print_result( contig, status, score, orgs, recipient, donor ):
                 orglist.append( str(len( orgs) - 1 -3 ) + ' other taxa with same score' )
                 orgs = orglist
     finalorgs = ';'.join( orgs )
-    return [str(x) for x in [contig, status, score, finalorgs, recipient, donor] ]
+    return [str(x) for x in [contig, length, status, score, finalorgs, recipient, donor] ]
     
 
 # ---------------------------------------------------------------
@@ -327,6 +327,7 @@ def main():
         writer = csv.writer( fh, dialect="excel-tab" )
         writer.writerow( ['contig', 'status', 'score', 'taxa', 'receipient', 'donor'] )
         for contig, taxalist in wu.iter_contig_taxa( args.input ):
+            contiglen = taxalist[0].length
             contigarray, taxaorder = generate_tables( taxalist )
             recipient, donor = "NA", "NA"
 
@@ -351,7 +352,7 @@ def main():
                 else:
                     status, score, taxa = rank_ambiguous( onebugscore, onebuglist, twobugscore, orgpair )
         
-            result_line = print_result( contig, status, score, taxa, recipient, donor )
+            result_line = print_result( contig, contiglen, status, score, taxa, recipient, donor )
             writer.writerow( result_line )
             
 if __name__ == "__main__":
