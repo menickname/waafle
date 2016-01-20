@@ -78,6 +78,7 @@ def get_args():
             
 def print_taxa( taxa ):
     orderedlist = [ str( taxa.contig ),
+                    str( taxa.length ),
                     str( taxa.gene ),
                     str( taxa.strand ),
                     str( taxa.genestart ),
@@ -107,10 +108,10 @@ def hits2taxa( contig, gene, genehits, taxalevel, uniref50, uniref90 ):
     taxalist = []
     if len( dict_orghits.keys() ) == 0:
         taxa = wu.Taxa( [] )
-        taxa.contig = contig
+        taxa.contig, taxa.length = contig, hit.qlen
         taxa.gene, taxa.strand, taxa.genestart, taxa.geneend = gene.genenum, gene.strand, gene.start, gene.end
         taxa.taxa = "Unknown"
-        taxa.score, taxa.percid, taxa.genecov, taxa.taxastart, taxa.taxaend = 0, 0, 0, "NA", "NA"
+        taxa.score, taxa.percid, taxa.genecov, taxa.taxastart, taxa.taxaend = 0, 0, 0, 0, 0
         taxa.uniref50, taxa.uniref90 = uniref50, uniref90
         taxa.hits = 0
         taxalist.append( print_taxa( taxa ) )
@@ -118,7 +119,7 @@ def hits2taxa( contig, gene, genehits, taxalevel, uniref50, uniref90 ):
         for org in dict_orghits:
             orghits = dict_orghits[org]
             taxa = wu.Taxa( [] )
-            taxa.contig = contig
+            taxa.contig, taxa.length = contig, hit.qlen
             taxa.gene, taxa.strand, taxa.genestart, taxa.geneend = gene.genenum, gene.strand, gene.start, gene.end
             taxa.taxa = org
             taxa.score, taxa.percid, taxa.genecov, taxa.taxastart, taxa.taxaend = wu.score_hits( orghits, gene.start, gene.end )
@@ -144,7 +145,7 @@ def main():
 
     with wu.try_open( args.out, "w" ) as fh:
         writer = csv.writer( fh, dialect="excel-tab" )
-        writer.writerow( ["contig", "genenum", "strand", "genestart", "geneend", "taxa", "taxastart", "taxaend", "score", "percid", "coverage", "uniref50", "uniref90", "orghitnum"] )
+        writer.writerow( ["contig", "contiglen", "genenum", "strand", "genestart", "geneend", "taxa", "taxastart", "taxaend", "score", "percid", "coverage", "uniref50", "uniref90", "orghitnum"] )
        
         dict_contiggenes = {}
         for contig, contiggenes in wu.iter_contig_genes( args.gff ):

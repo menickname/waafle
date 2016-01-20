@@ -57,6 +57,7 @@ c_gfffields = [
 
 c_taxafields = [
     ["contig", str],
+    ["length", int],
     ["gene", int],
     ["strand", str],
     ["genestart", int],
