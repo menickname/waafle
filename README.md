@@ -31,7 +31,7 @@ several steps:
 1. __waafle_search.py__
     * This script BLASTs contigs against the Repophlan database.
     * Usage:  
-    ``$ repophlan_db= /n/huttenhower_lab_nobackup/data/hgt/blast/blast_db_updated/repophlan_31122013_speciescentroids.db  ``
+    ``$ repophlan_db= /n/huttenhower_lab_nobackup/data/hgt/blast/blast_db/repophlan_31122013_speciescentroids.db  ``
     ``$ blastpath= '/usr/local/bin/blastn'``  
     ``$ python waafle_search.py -q CONTIGFILE.fasta -d repophlan_db -b blastpath -e 1 -o waafle-blastout.tsv``  
 
