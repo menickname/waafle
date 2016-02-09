@@ -121,7 +121,7 @@ def main():
         bbstrline = bstrline.strip().split('\t')
         if bbstrline[1] == 'status':
             continue
-        contig, waafle_status = bbstrline[0], bbstrline[1]
+        contig, waafle_status = bbstrline[0], bbstrline[2]
         set_waafle_contigs.add( contig )
         LGTcall = ''
     
@@ -138,11 +138,11 @@ def main():
         ans_recip, ans_donor = dict_answerkey[contig][1], dict_answerkey[contig][2]
         ans_reciplevel = ans_recip.split('|')[waafle_taxalevel]
         ans_donorlevel = ans_donor.split('|')[waafle_taxalevel]
-        callstatus = call_orgs( ans_status, ans_reciplevel, ans_donorlevel, waafle_status, bbstrline[3] )
+        callstatus = call_orgs( ans_status, ans_reciplevel, ans_donorlevel, waafle_status, bbstrline[4] )
         orgcall, ansorgs, waafleorgs = callstatus[0], ';'.join( callstatus[1] ), ';'.join( callstatus[2] ) 
         
         #call donor-recip
-        waafle_recip, waafle_donor = bbstrline[4], bbstrline[5]
+        waafle_recip, waafle_donor = bbstrline[5], bbstrline[6]
         if waafle_recip == 'NA' or waafle_donor == 'NA':
             RD_call = 'No_RDCall'
         else:

@@ -135,7 +135,7 @@ def main():
         for taxa in dict_waafletaxa.keys(): 
             scores, starts, ends = dict_waafletaxa[taxa][0], [int(x) for x in dict_waafletaxa[taxa][1]], [int(y) for y in dict_waafletaxa[taxa][2]]
             headlen = contiglen/50
-            diffs = list(np.array(ends) - np.array(starts) - headlen )
+            diffs = list(np.array(ends) - np.array(starts))
             print( contig, taxa, starts, scores, diffs, headlen )
             for i in range( len( scores ) ):
                 h_waafle.arrow( starts[i], scores[i], diffs[i], 0, width=0.02, color=dict_taxacolor[taxa], head_width=0.02, head_length=headlen, alpha=0.4 )

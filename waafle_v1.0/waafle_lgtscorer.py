@@ -58,6 +58,12 @@ def get_args():
         type=bool,
         default=False
         )
+    parser.add_argument(
+        "-lap", "--myoverlap",
+        help="Merge overlapping +/- genes at this overlap level.",
+        type=float,
+        default=0.5
+        )
     args = parser.parse_args()
     return args
 
@@ -76,7 +82,7 @@ def count_strands( taxalist ):
     else:
         return 1
 
-def find_overlap_genes( taxalist ):
+def find_overlap_genes( taxalist, myoverlap ):
     """
     For contigs with genes on both strands, determine if genes overlap.
     For contigs without overlapping genes, return "False."
@@ -88,7 +94,7 @@ def find_overlap_genes( taxalist ):
         next_taxa = taxalist[i + 1]
         if first_taxa.gene != next_taxa.gene and first_taxa.strand != next_taxa.strand:
             overlap = wu.calc_overlap( first_taxa.genestart, first_taxa.geneend, next_taxa.genestart, next_taxa.geneend )
-            if overlap > 0.5:
+            if overlap > myoverlap:
                 overlaplist.append( [first_taxa.gene, next_taxa.gene] )
     if len( overlaplist ) == 0:
         return "no_overlap", None
@@ -127,7 +133,7 @@ def spike_unknown( contigarray, taxaorder, unknown ):
     final_contigarray = np.copy( contigarray )
     final_taxaorder = [item for item in taxaorder ]
     numorgs, numgenes = final_contigarray.shape
-    if numgenes == 0 or unknown:
+    if numgenes == 0 or not unknown:
         return final_contigarray, final_taxaorder
     else:
         if "unknown" in taxaorder:
@@ -193,7 +199,7 @@ def account_overlap( contigarray, overlapset  ):
             if i in geneindex:
                 collist.pop( )
                 if i == firstgene:
-                    collist.append( geneindex ) 
+                    collist.append( geneindex )
     #Generate new contig array with replaced columns
     newcontigarray = np.zeros( (numbugs, len( collist )) )
     for i in range( len( collist ) ):
@@ -325,18 +331,20 @@ def main():
     args = get_args()
     with wu.try_open( args.out, "w" ) as fh:
         writer = csv.writer( fh, dialect="excel-tab" )
-        writer.writerow( ['contig', 'status', 'score', 'taxa', 'receipient', 'donor'] )
+        writer.writerow( ['contig', 'contiglen', 'status', 'score', 'taxa', 'recipient', 'donor'] )
         for contig, taxalist in wu.iter_contig_taxa( args.input ):
             contiglen = taxalist[0].length
             contigarray, taxaorder = generate_tables( taxalist )
             recipient, donor = "NA", "NA"
 
             if count_strands( taxalist ) == 2:
-                gene_status, overlapgenes = find_overlap_genes( taxalist )
+                gene_status, overlapgenes = find_overlap_genes( taxalist, args.myoverlap )
                 if gene_status == "overlap":
                     contigarray = account_overlap( contigarray, overlapgenes )
            
             spikearray, spikeorder = spike_unknown( contigarray, taxaorder, args.unknown )
+            print( spikearray )
+            print( spikeorder )
             onebugscore, onebuglist = calc_onebug( spikearray, spikeorder )
             numbugs, numgenes = spikearray.shape
                     
