@@ -22,6 +22,8 @@ import numpy.ma as ma
 # constants
 # ---------------------------------------------------------------
 
+c__list_taxa = ["k", "p", "c", "o", "f", "g", "s"]
+
 # ---------------------------------------------------------------
 # functions
 # ---------------------------------------------------------------
@@ -57,12 +59,6 @@ def get_args():
         help="By default this is 'False'. If you want to output unknowns, type 'True'.",
         type=bool,
         default=False
-        )
-    parser.add_argument(
-        "-lap", "--myoverlap",
-        help="Merge overlapping +/- genes at this overlap level.",
-        type=float,
-        default=0.5
         )
     args = parser.parse_args()
     return args
@@ -133,23 +129,29 @@ def spike_unknown( contigarray, taxaorder, unknown ):
     final_contigarray = np.copy( contigarray )
     final_taxaorder = [item for item in taxaorder ]
     numorgs, numgenes = final_contigarray.shape
-    if numgenes == 0 or not unknown:
+    taxalevel = taxaorder[0].split('__')[0]
+    unknown_name = taxalevel + "__Unknown"
+    
+    if numgenes == 0:
+        return final_contigarray, final_taxaorder
+    if unknown_name in taxaorder:
+        unknown_index = taxaorder.index( unknown_name )
+        for i in range( numgenes ):
+            unknown_score = 1 - np.max( contigarray[:, i] )
+            if contigarray[unknown_index, i] == 1:
+                unknown_score = 1
+            final_contigarray[ unknown_index, i ] = unknown_score
+        return final_contigarray, final_taxaorder
+    elif not unknown:
         return final_contigarray, final_taxaorder
     else:
-        if "unknown" in taxaorder:
-            unknown_index = taxaorder.index( "unknown" )
-            for i in range( numgenes ):
-                unknown_score = 1 - np.max( contigarray[:, i] )
-                final_contigarray[ unknown_index, i ] = unknown_score
-            return final_contigarray, final_taxaorder
-        else:
-            unknown = []
-            for i in range( numgenes ):
-                unknown_score = 1 - np.max( contigarray[:, i] )
-                unknown.append( unknown_score )
-            final_contigarray = np.append( final_contigarray, [unknown], axis=0 )
-            final_taxaorder.append( 'unknown' )
-            return final_contigarray, final_taxaorder
+        unknown = []
+        for i in range( numgenes ):
+            unknown_score = 1 - np.max( contigarray[:, i] )
+            unknown.append( unknown_score )
+        final_contigarray = np.append( final_contigarray, [unknown], axis=0 )
+        final_taxaorder.append( unknown_name )
+        return final_contigarray, final_taxaorder
            
  
 def generate_array( taxalist, genelist, target_taxon ):
@@ -336,15 +338,8 @@ def main():
             contiglen = taxalist[0].length
             contigarray, taxaorder = generate_tables( taxalist )
             recipient, donor = "NA", "NA"
-
-            if count_strands( taxalist ) == 2:
-                gene_status, overlapgenes = find_overlap_genes( taxalist, args.myoverlap )
-                if gene_status == "overlap":
-                    contigarray = account_overlap( contigarray, overlapgenes )
            
             spikearray, spikeorder = spike_unknown( contigarray, taxaorder, args.unknown )
-            print( spikearray )
-            print( spikeorder )
             onebugscore, onebuglist = calc_onebug( spikearray, spikeorder )
             numbugs, numgenes = spikearray.shape
                     

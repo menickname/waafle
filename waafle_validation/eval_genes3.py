@@ -5,7 +5,7 @@ import os, sys, csv, argparse
 import waafle_utils as wu
 from operator import itemgetter, attrgetter, methodcaller
 from collections import Counter
-
+import numpy as np
 
 # ---------------------------------------------------------------
 # functions
@@ -19,39 +19,72 @@ def get_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
         )
     parser.add_argument(
-        "-w_gff", "--waaflegff",
+        "-gff", "--gff",
         required=True,
-        help="output from waafle_genecaller"
+        help="gff"
         )
     parser.add_argument(
-        "-o_gff", "--othergff",
+        "-rgff", "--refgff",
         required=True,
-        help="gff to compare"
+        help="reference gff"
         )
+    parser.add_argument(
+        "-lap", "--lap",
+        help="lower overlap threshold",
+        type=float,
+        )
+    parser.add_argument(
+        "-rlap", "--rlap",
+        help="higher overlap threshold",
+        type=float,
+        )
+    parser.add_argument(
+        "-s", "--strand",
+        help="overlap only genes of same strand, default:False",
+        default=False,
+        type=bool
+        )        
     args = parser.parse_args()
     return args
 
-def calc_overlap( w_start, w_end, ans_start, ans_end ):
+def calc_overlap( start, end, refstart, refend ):
     """
     Calculate overlap between two hits or genes.
     """
-    if w_start - ans_end > 0 or ans_start - w_end > 0:
-        status = 'no_call'
+    a1, b1 = start, end
+    a2, b2 = refstart, refend
+    if b1 < a2 or b2 < a1:
+        return 0, 0
     else:
-        w_divisor = float( w_end - w_start + 1 )
-        ans_divisor = float( ans_end - ans_start + 1 )
-        coord_sorted = sorted( [w_start, w_end, ans_start, ans_end] )
-        ans_overlap = float( ( coord_sorted[2] - coord_sorted[1] )/ans_divisor )
-        w_overlap = float( ( coord_sorted[2] - coord_sorted[1] )/w_divisor )
-        if w_overlap >= 0.9 and ans_overlap >= 0.5:
-            status = 'call'
-        elif w_overlap >= 0.9 and ans_overlap < 0.5:
-            status = 'partial_call'
-        else:
-            status = 'no_call'
-    return status
+        outleft, inleft, inright, outright = sorted( [a1, b1, a2, b2] )
+        denom = end-start+1
+        refdenom = refend-refstart+1
+        overlap = ( inright - inleft + 1 ) / float( denom )
+        refoverlap = ( inright - inleft + 1 ) / float( refdenom )
+        return overlap, refoverlap
 
-def printgff( gffrow ):
+def det_status( overlap, refoverlap, arglap ):
+    if overlap >= arglap and refoverlap >= arglap:
+        status = 'call'
+    else:
+        status = 'no_call'
+    return status
+    
+def partial_to_call( one_array, notone_array, startarr, endarr, strandarr, genestart, geneend, lap ):
+    where = np.where( one_array >= lap )
+    if len( one_array[where] ) > 1:
+        newstart = min( startarr[where] )
+        newend =  max( endarr[where] )
+        newoverlap, newrefoverlap = calc_overlap( genestart, geneend, newstart, newend )
+        newstatus = det_status( newoverlap, newrefoverlap, lap )
+        if newstatus == 'call':
+            return ['partial-call', newoverlap, newrefoverlap, startarr[where], endarr[where], strandarr[where]]
+        else:
+            return ['partial-multiple', newoverlap, newrefoverlap, startarr[where], endarr[where], strandarr[where]]
+    else:
+        return ['partial-single', startarr[where], endarr[where], strandarr[where]]
+
+def print_gff( gffrow ):
     """
     Format the gff class into a ordered list for printing.
     """
@@ -73,58 +106,97 @@ def printgff( gffrow ):
 
 def main():
     args = get_args()
-    dict_contigogenes, dict_contigwgenes = {}, {} 
-    
-    for contig, ogenes in wu.iter_contig_genes( args.othergff ):
-        dict_contigogenes[contig] = ogenes
 
-    for contig, wgenes in wu.iter_contig_genes( args.waaflegff ):
-        dict_contigwgenes[contig] = wgenes
+    #store genes and reference genes
+    dict_contigrefgenes, dict_contiggenes = {}, {}     
+    for contig, refgenes in wu.iter_contig_genes( args.refgff ):
+        dict_contigrefgenes[contig] = refgenes
+    for contig, genes in wu.iter_contig_genes( args.gff ):
+        dict_contiggenes[contig] = genes
 
+    #compare genes to reference genes
     genes_ans = []
-    for contig in dict_contigwgenes.keys(): 
-        wgenes = dict_contigwgenes[contig]
+    for contig in dict_contiggenes.keys(): 
+        genes = dict_contiggenes[contig]
         
-        if contig in dict_contigogenes:
-            ogenes = dict_contigogenes[contig]
-            for wgene in wgenes: #list of genes to annotate
-                wgene_found = False
-                genes_missed = []
-                for i in range( len( ogenes ) ): #list of genes to compare to 
-                    ogene = ogenes[i]
-                    strand_counter = 0
-    
-                    if wgene_found == True:
+        for gene in genes: #looking at the genes to annotate
+            gene.sepattr( gene.attribute )
+            gene_found = False
+            start_all, end_all, strand_all, lap_all, reflap_all = np.array([]), np.array([]), np.array([]), np.array([]), np.array([])
+            line = [contig, gene.genenum, gene.start, gene.end, gene.strand]
+
+
+            if contig in dict_contigrefgenes:
+                refgenes = dict_contigrefgenes[contig]        
+                for i in range( len( refgenes ) ): #looking at refgenes for comparison 
+                    refgene = refgenes[i]
+                    refgene.sepattr( refgene.attribute )
+
+                    if gene_found == True: #end loop if you find a matching gene
                         break
                     
-                    if wgene.strand == ogene.strand:
-                        strand_counter += 1
-                        status = calc_overlap( wgene.start, wgene.end, ogene.start, ogene.end )
-                        
-                        if status == 'call':
-                            wgene_found = True
-                            line = '\t'.join( str(x) for x in [contig, wgene.genenum, wgene.start, wgene.end, ogene.start, ogene.end, 'called'] )
-                        if status == 'partial_call':
-                            genes_missed.append( [wgene.genenum, wgene.start, wgene.end, ogene.start, ogene.end] )
+                    #calculate overlap region w/regard to gene and reference gene, respectively
+                    overlap, refoverlap = calc_overlap( gene.start, gene.end, refgene.start, refgene.end )
+                    status = det_status( overlap, refoverlap, args.lap )
+                    if args.strand and gene.strand == refgene.strand: #do it w/regard to strand if flagged
+                        overlap, refoverlap = calc_overlap( gene.start, gene.end, refgene.start, refgene.end )
+                        status = det_status( overlap, refoverlap, args.lap )
 
-                    if i == len( ogenes ) - 1 and wgene_found == False:
-                        if len( genes_missed ) > 0:
-                            newname = ''
-                            for x in genes_missed:
-                                newname = newname + '\t'.join( [str(y) for y in x] ) + ';'
-                            line = '\t'.join( [contig, newname, 'partial'] ) 
-                            wgene_found = True
-                        else:
-                            if strand_counter == 0:
-                                line = '\t'.join( str(x) for x in [contig, wgene.genenum, wgene.start, wgene.end, ogene.start, ogene.end, 'missed_strand'] )
+                    start_all = np.append( start_all, refgene.start )
+                    end_all = np.append( end_all, refgene.end )
+                    strand_all = np.append( strand_all, refgene.strand )
+                    lap_all = np.append( lap_all, overlap )
+                    reflap_all = np.append( reflap_all, refoverlap )
+
+                    if status == 'call': #if you get a matching gene
+                        gene_found = True
+                        nline = [refgene.start, refgene.end, refgene.strand, 'called', overlap, refoverlap]
+                        result = '\t'.join( str(x) for x in line + nline )
+                        print( result ) 
+
+                    if i == len( refgenes )-1 and gene_found == False: #if you never get a total match...
+                        zero = np.count_nonzero( lap_all )
+                        refzero = np.count_nonzero( reflap_all ) 
+                        if zero == 0 and refzero == 0: #no overlap
+                            nline = ['NA', 'NA', 'NA', 'no-call', 0, 0]
+                            result = '\t'.join( str(x) for x in line + nline )
+                            print( result )
+
+                        else: #some overlap
+                            if max( lap_all ) >= args.lap and max( reflap_all ) < args.lap: #partial-product_in_reference
+                                where = np.where( lap_all >= args.lap )
+                                info = partial_to_call( lap_all, reflap_all, start_all, end_all, strand_all, gene.start, gene.end, args.lap )
+                                if info[0] == 'partial-single':
+                                    nline = [list(info[1])[0], list(info[2])[0], list(info[3])[0], 'partial-single-inref', list(lap_all[where])[0], list(reflap_all[where])[0]] 
+                                    result = '\t'.join( str(x) for x in line + nline )
+                                    print( result )
+                                else:
+                                    nline = [','.join( str(y) for y in list(info[3]) ), ','.join( str(y) for y in list(info[4]) ), ','.join( str(y) for y in list(info[5]) ), str(info[0]), info[1], info[2]]
+                                    result = '\t'.join( str(x) for x in line + nline )
+                                    print( result )
+
+                            elif max( lap_all ) < args.lap and max( reflap_all ) >= args.lap: #partial-reference_in_product
+                                where = np.where( reflap_all >= args.lap )
+                                info = partial_to_call( reflap_all, lap_all, start_all, end_all, strand_all, gene.start, gene.end, args.lap ) 
+                                if info[0] == 'partial-single':
+                                    nline = [list(info[1])[0], list(info[2])[0], list(info[3])[0], 'partial-single-ingene', list(lap_all[where])[0], list(reflap_all[where])[0]]
+                                    result = '\t'.join( str(x) for x in line + nline )
+                                    print( result )
+                                else:
+                                    nline = [','.join( str(y) for y in list(info[3]) ), ','.join( str(y) for y in list(info[4]) ), ','.join( str(y) for y in list(info[5]) ), info[0], info[1], info[2] ]
+                                    result = '\t'.join( str(x) for x in line + nline )
+                                    print( result )
+
                             else:
-                                line = '\t'.join( str(x) for x in [contig, wgene.genenum, wgene.start, wgene.end, ogene.start, ogene.end, 'missed_overlap'] )
-                print( line )
-        else:
-            for wgene in wgenes: #genes not in comparison because no genes in contig
-                line = '\t'.join( str(x) for x in [contig, wgene.genenum, wgene.start, wgene.end, 'NA', 'NA', 'missed_nogene'] )
-                print( line )
+                                where = np.where( (lap_all - reflap_all) != 0 )
+                                nline = [ ','.join( str(y) for y in list(start_all[where])), ','.join( str(y) for y in list(end_all[where])), ','.join( str(y) for y in list(strand_all[where])), 'no-call', ','.join( str(y) for y in list(lap_all[where])), ','.join(list(str(y) for y in reflap_all[where]))]
+                                result = '\t'.join( str(x) for x in line + nline )
+                                print( result )
 
+            else:
+                nline = [ 'NA', 'NA', 'NA', 'no-contig', 0, 0 ]
+                result = '\t'.join( str(x) for x in line + nline )
+                print( result )            
 
 if __name__ == "__main__":
     main()

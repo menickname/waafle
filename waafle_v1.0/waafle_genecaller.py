@@ -55,16 +55,10 @@ def get_args():
         help="waafle gene calls",
         )
     parser.add_argument(
-        "-lap_h", "--overlap_hits",
+        "-lap", "--overlap_hits",
         default=0.5,
         type=float,
         help="overlap at which to merge hits into groups",
-        )
-    parser.add_argument(
-        "-lap_g", "--overlap_genes",
-        default=0.5,
-        type=float,
-        help="overlap at which to merge groups into genes",
         )
     parser.add_argument(
         "-l", "--length",
@@ -73,69 +67,92 @@ def get_args():
         help="length constraint for genes",
         )
     parser.add_argument(
-        "-scov_h", "--scov_hits",
+        "-scov", "--scov_hits",
         default=0,
         type=float,
         help="scoverage filter for hits",
         )
     parser.add_argument(
-        "-scov_g", "--scov_genes",
-        default=0,
-        type=float,
-        help="scoverage filter for genes",
+        "-s", "--strand",
+        default=False,
+        type=bool,
+        help="strand specific gene calling (default False)",
         )
     args = parser.parse_args()
     return args
 
-def hits2coords( hitlist, scov ):
+def hits2ints( hitlist, scov ):
     """
-    For a list of hits, filter by some metric (current method: scoverage )
-    Get start/end sites for positive and negative strands (two lists).
+    For a list of hits, filter by scoverage.
     """
-    poscoordslist, negcoordslist = [], []
+    intervals = []
     for hit in hitlist:
+        strand = wu.convert_strand( hit.sstrand )
         if hit.scov_modified >= scov:
-            if hit.sstrand == 'minus':
-                negcoordslist.append( [hit.qstart, hit.qend, '-'] )
-            else:
-                poscoordslist.append( [hit.qstart, hit.qend, '+'] )
-    return poscoordslist, negcoordslist
-"""
-def coords2groups( coordslist, overlap_thresh ):
-    #Bin a list of hits into groups by start/end coordinates.
-    groups = []
-    for start, end, strand in coordslist:
-        group_add = False 
-        if len( groups )== 0:
-            groups.append( [start, end, strand] )
-	    continue
-        else:
-            for i in range( len( groups ) ):
-                overlap = wu.calc_overlap( groups[i][0], groups[i][1], start, end )
-                if overlap >= overlap_thresh:
-                   coord_sorted = sorted( [groups[i][0], groups[i][1], start, end] )
-                   groups[i] = [coord_sorted[0], coord_sorted[3], strand]
-                   group_add = True    
-                if i == len( groups ) - 1 and group_add == False:
-                   groups.append( [start, end, strand] )
-    return groups
+                intervals.append( [hit.qstart, hit.qend, strand] )
+    return intervals
 
-def groups2genes( groups, overlap_thresh ):
-    #Sort groups by start/end coordinates.
-    #Bin a list of groups into genes by start/end coordinates (of groups).
-    genes = []
-    #Sort groups by end and start coordinates
-    for gene in groups:
-        length = int(gene[1]) - int(gene[0])
-        gene.append( length )
-    groups.sort( key=itemgetter( 3 ), reverse=True )
-    group_sorted = [x[0:3] for x in groups]
-    if len(groups) == 1:
-        genes = group_sorted
+def overlap_inodes( inode1, inode2 ):
+    """ compute overlap between two intervals """
+    a1, b1 = inode1.start, inode1.stop
+    a2, b2 = inode2.start, inode2.stop
+    if b1 < a2 or b2 < a1:
+        return 0
     else:
-        genes = coords2groups( group_sorted, overlap_thresh )
-    return genes
-"""     
+        outleft, inleft, inright, outright = sorted( [a1, b1, a2, b2] )
+        denom = min( len( inode1 ), len( inode2 ) )
+        return ( inright - inleft + 1 ) / float( denom )
+    
+def merge_inodes( *inodes ):
+    """ merge overlapping intervals into a single node """
+    start = stop = None
+    strand_rank = []
+    for inode in inodes:
+        if start is None or inode.start < start:
+            start = inode.start
+        if stop is None or inode.stop > stop:
+            stop = inode.stop
+        strand_rank.append( [len( inode ), inode.strand] )
+    # assign strand of largest interval to the merged interval
+    strand = sorted( strand_rank )[-1][1]
+    return wu.INode( start, stop, strand )
+
+def make_inodes( intervals ):
+    """ convert list of intervals to list of inodes """
+    inodes = []
+    for interval in intervals:
+        start, stop = interval[0:2]
+        strand = "+" if len( interval ) < 3 else interval[2]
+        inodes.append( wu.INode( start, stop, strand ) )
+    return inodes
+        
+def overlap_intervals( intervals, threshold=1.0, strand_specific=True ):
+    """ find and collapse overlapping intervals """
+    inodes = make_inodes( intervals )
+    inodes = sorted( inodes, key=lambda inode: inode.start )
+    for index, inode1 in enumerate( inodes ):
+        for inode2 in inodes[index+1:]:
+            if inode1.strand == inode2.strand or not strand_specific:
+                score = overlap_inodes( inode1, inode2 )
+                if score >= threshold:
+                    # store as edge in network
+                    inode1.attach( inode2 )
+                    inode2.attach( inode1 )
+                elif score == 0:
+                    # no further inode2 can overlap this inode1
+                    break
+    # divide intervals into "connected components"
+    cclist = []
+    for inode in inodes:
+        if not inode.visited:
+            cclist.append( inode.get_connected_component( ) )
+    # merge intervals and report as simple lists
+    results = []
+    for cc in cclist:
+        merged = merge_inodes( *cc ).to_list( )
+        originals = [inode.to_list( ) for inode in cc]
+        results.append( [merged, originals] )
+    return results
 
 # ---------------------------------------------------------------
 # main
@@ -144,35 +161,33 @@ def groups2genes( groups, overlap_thresh ):
 def main():
     """
     This script does the following:
-    1) Sorts hits per contig by length and bitscore.
-    2) Separate hits by strand and potentially filter by scoverage_modified.
-    3) Form genes by grouping overlapping hits, and then grouping overlapping groups.
-    4) Group hits by genes to calculate a scores and annotate unirefs.
-    5) Filter genes by length, score, or number of hits.
-    6) Print out gff.
+    1) Organizes BLAST hits that pass the scov filter into intervals.
+    2) Sort intervals by start site and find connected intervals.
+    3) Merge connected intervals into genes, and filter by genelen.
+    4) Print genes as gff.
     """
     args = get_args()
-    with wu.try_open( args.out, "w" ) as fh:
-            writer = csv.writer( fh, dialect="excel-tab" )
+    fh =  wu.try_open( args.out, "w" )
+    writer = csv.writer( fh, dialect="excel-tab" )
 
-            for contig, hitlist in wu.iter_contig_hits( args.input ):
-                hitlist_sorted = sorted( hitlist, key=attrgetter( 'length', 'bitscore' ), reverse=True )
-                poscoordlist, negcoordlist = hits2coords( hitlist_sorted, args.scov_hits )
-
-                posgrouplist = wu.coords2groups( poscoordlist, args.overlap_hits )
-                neggrouplist = wu.coords2groups( negcoordlist, args.overlap_hits )
-
-                posgenelist = wu.groups2genes( posgrouplist, args.overlap_genes )
-                neggenelist = wu.groups2genes( neggrouplist, args.overlap_genes )
-                pos_filtered = wu.filter_genes( posgenelist, hitlist, args.overlap_hits, args.length, args.scov_genes, args.scov_hits )
-                neg_filtered = wu.filter_genes( neggenelist, hitlist, args.overlap_hits, args.length, args.scov_genes, args.scov_hits )
+    for contig, hitlist in wu.iter_contig_hits( args.input ):
+        intervals = hits2ints( hitlist, args.scov_hits )
+        newintervals = overlap_intervals( intervals, threshold=args.overlap_hits, strand_specific=args.strand)
                 
-                allgenelist = pos_filtered + neg_filtered
-                allgenelist.sort( key=itemgetter( 0 ) )
-                gfflist = wu.write_gff( contig, allgenelist )
-                for gff in gfflist:
-                    writer.writerow( gff )
+        counter = 1
+        for gene in newintervals:
+            start, end, strand = gene[0][0], gene[0][1], gene[0][2]
+            genelen = end - start + 1
+
+            if genelen > args.length:
+                score = len( gene[1] )
+                name = 'ID=' + contig + '_' + str(counter)
+                gff = wu.print_gff( wu.GFF( [contig, 'WAAFLE', 'CDS', start, end, score, strand, '0', name] ) ) 
+                writer.writerow( [str(x) for x in gff] )
+                counter += 1
+
     fh.close()
+
 
 if __name__ == "__main__":
     main()

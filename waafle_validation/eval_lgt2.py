@@ -119,7 +119,7 @@ def main():
     set_waafle_contigs = set( [] )
     for bstrline in open( args.scoredcontigs ):
         bbstrline = bstrline.strip().split('\t')
-        if bbstrline[1] == 'status':
+        if bbstrline[1] == 'contiglen':
             continue
         contig, waafle_status = bbstrline[0], bbstrline[2]
         set_waafle_contigs.add( contig )

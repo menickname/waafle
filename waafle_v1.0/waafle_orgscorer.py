@@ -32,6 +32,8 @@ c__dict_taxa = {
     "s": 6,
 }
 
+c__list_taxa = ["k", "p", "c", "o", "f", "g", "s"]
+
 # ---------------------------------------------------------------
 # functions
 # ---------------------------------------------------------------
@@ -53,107 +55,98 @@ def get_args():
         help="output from waafle_search",
         )
     parser.add_argument(
-        "-t", "--taxa",
-        help="level of taxa to score",
-        )
-    parser.add_argument(
         "-o", "--out",
         default="waafle-scoredorgs.tsv",
         help="output for scored taxa",
         )
     parser.add_argument(
-        "-scov_h", "--scov_hits",
-        help="cutoff for gene coverage or subject coverage when grouping hits",
-        default=0,
-        type=float,
-        )
-    parser.add_argument(
-        "-scov_g", "--scov_genes",
-        help="cutoff for gene coverage or subject coverage for genes",
-        default=0,
-        type=float,
-        )
-    parser.add_argument(
-        "-l", "--length",
-        help="cutoff for gene length",
-        default=0,
-        type=float,
-        )
-    parser.add_argument(
-        "-lap", "--overlap",
+        "-lap", "--overlap_hits",
         help="amount of overlap to include hit in a gene",
         default=0.5,
         type=float,
         )
     parser.add_argument(
-        "-merge-by", "--genemerge",
-        help="options to merge genes for more conservative gene calls. Choose options 'none', 'strand', 'all'",
-        default='none',
-        type=str,
+        "-scov", "--scov_hits",
+        help="cutoff for gene coverage or subject coverage when grouping hits",
+        default=0,
+        type=float,
+        )
+    parser.add_argument(
+        "-t", "--taxalevel",
+        help="level of taxa to score",
+        )
+    parser.add_argument(
+        "-s", "--strand",
+        help="strand-specific splitting, default=False",
+        default=False,
+        type=bool,
         )
     args = parser.parse_args()
     return args
 
-def combine_genes( genelist, option, lap ):
-    """
-    Merge genes based on the option specified. 
-    """
-    if option == 'none':
-        genecoords = []
-        for gene in genelist:
-            genecoords.append( [gene.start, gene.end, gene.strand] )
-        return genecoords
-    elif option == 'strand':
-        posgenes, neggenes = [], []
-        for gene in genelist:
-            if gene.strand == '+':
-                posgenes.append( [gene.start, gene.end, gene.strand] )
-            else:
-                neggenes.append( [gene.start, gene.end, gene.strand] )
-        posgenes_group = wu.groups2genes( posgenes, lap )
-        neggenes_group = wu.groups2genes( neggenes, lap )
-        genecoords = sorted( posgenes_group + neggenes_group )
-        return genecoords
+def calc_overlap( a1, b1, a2, b2 ):
+    """ compute overlap between two intervals """
+    if b1 < a2 or b2 < a1:
+        return 0
     else:
-        allgenes = []
-        for gene in genelist:
-            allgenes.append( [gene.start, gene.end, '.'] )
-        allgenes_group = wu.groups2genes( allgenes, lap )
-        genecoords = sorted( allgenes_group )
-        return genecoords
+        outleft, inleft, inright, outright = sorted( [a1, b1, a2, b2] )
+        denom = min( ( b1 - a1 + 1 ), ( b2 - a2 + 1 ) )
+        return ( inright - inleft + 1 ) / float( denom )
 
-def hits2taxa( contig, gene, genehits, taxalevel, uniref50, uniref90 ):
+def hits2genes( gene, hits, strand_specific, lap, scov, taxalevel ):
+    genehits = []
+    taxaset = set()
+    uniref50, uniref90 = [], []
+    for hit in hits:
+        hitstrand = wu.convert_strand( hit.sstrand )
+        if ( hitstrand == gene.strand or not strand_specific ) and hit.scov_modified > scov:
+            overlap = calc_overlap( hit.qstart, hit.qend, gene.start, gene.end )    
+            if overlap > lap:
+                genehits.append( hit )
+                taxaset.add( hit.taxonomy[taxalevel] )
+                uniref50.append( hit.uniref50 )
+                uniref90.append( hit.uniref90 )
+    uniref50_c = ','.join( [ str(x) + ':' + str(y) for x, y in Counter( uniref50 ).most_common( 3 )] )
+    uniref90_c = ','.join( [ str(x) + ':' + str(y) for x, y in Counter( uniref90 ).most_common( 3 )] )
+    info = [genehits, taxaset, uniref50_c, uniref90_c, taxalevel ]
+    return info
+
+def score_taxa( gene, info, contiglen ):
     """
     Group hits that correspond to specific taxa.
     If the gene did not have hits to begin with, output an "unknown" taxa with score 0.
     If the gene has hits that corresponds to orgs, score the orgs and output the taxa annotations.
     """
-    dict_orghits = {}
+    genehits, taxaset, uniref50_c, uniref90_c, taxalevel = info
     gene.sepattr( gene.attribute )
-    for hit in genehits:
-        taxa = hit.taxonomy[taxalevel]
-        dict_orghits.setdefault( taxa, [] ).append( hit )
+    genelen = gene.end - gene.start + 1
     taxalist = []
-    if len( dict_orghits.keys() ) == 0:
-        taxa = wu.Taxa( [] )
-        taxa.contig, taxa.length = contig, 0
-        taxa.gene, taxa.strand, taxa.genestart, taxa.geneend = gene.genenum, gene.strand, gene.start, gene.end
-        taxa.taxa = "Unknown"
-        taxa.score, taxa.percid, taxa.genecov, taxa.taxastart, taxa.taxaend = 0, 0, 0, 0, 0
-        taxa.uniref50, taxa.uniref90 = uniref50, uniref90
-        taxa.hits = 0
-        taxalist.append( wu.print_taxa( taxa ) )
+    if len( genehits ) == 0:
+        #set unknown taxa or output
+        taxa = c__list_taxa[taxalevel] + '__Unknown'
+        start_list, end_list, score = gene.start, gene.end, 1 
+        taxa = wu.Taxa( [gene.seqname, contiglen, gene.genenum, gene.strand, gene.start, gene.end, taxa, start_list, end_list, score, 'No_Uniref50', 'No_Uniref90', 0] )
+        taxalist.append( taxa )
     else:
-        for org in dict_orghits:
-            orghits = dict_orghits[org]
-            taxa = wu.Taxa( [] )
-            taxa.contig, taxa.length = contig, hit.qlen
-            taxa.gene, taxa.strand, taxa.genestart, taxa.geneend = gene.genenum, gene.strand, gene.start, gene.end
-            taxa.taxa = org
-            taxa.score, taxa.percid, taxa.genecov, taxa.taxastart, taxa.taxaend = wu.score_hits( orghits, int(gene.start), int(gene.end), 'taxa' )
-            taxa.uniref50, taxa.uniref90 = uniref50, uniref90
-            taxa.hits = len( dict_orghits[org] )
-            taxalist.append( wu.print_taxa( taxa ) )
+        dict_orgscores = {}
+        for taxa in taxaset:
+            dict_orgscores.setdefault( taxa, np.zeros( genelen ) )
+            numhits = 0
+            for hit in genehits:
+                if hit.taxonomy[taxalevel] == taxa:
+                    numhits += 1
+                    orgarray = dict_orgscores.get( taxa )
+                    hitarray = np.zeros( genelen )
+                    arraystart = max( hit.qstart - gene.start, 0 )
+                    arrayend = min( hit.qend - gene.start + 1, genelen )
+                    hitarray[arraystart: arrayend] = (hit.pident/float(100))*hit.scov_modified
+                    dict_orgscores[taxa] = np.maximum( hitarray, orgarray )
+            score = np.mean( dict_orgscores[taxa] )
+            startstop = np.split(np.argwhere( dict_orgscores[taxa] ), np.where(np.diff(np.argwhere( dict_orgscores[taxa] ), axis=0)!= 1)[0]+1)
+            start_list = ','.join( [str(element[0][0] + gene.start) for element in startstop] )
+            end_list = ','.join( [str(element[-1][0] + gene.start) for element in startstop] ) #check this
+            taxa = wu.Taxa( [gene.seqname, contiglen, gene.genenum, gene.strand, gene.start, gene.end, taxa, start_list, end_list, score, uniref50_c, uniref90_c, numhits] )
+            taxalist.append( taxa )
     return taxalist
 
 # ---------------------------------------------------------------
@@ -163,44 +156,35 @@ def hits2taxa( contig, gene, genehits, taxalevel, uniref50, uniref90 ):
 def main():
     """
     This script does:
-    1) Groups hits into genes for contigs that have genes called.
-    2) Groups hits into orgs per gene.
-    3) Score each org.
+    1) Groups hits into orgs per gene.
+    2) Score each org.
     4) Prints out the taxa into a new file.
     """
     args = get_args()
-    taxalevel = c__dict_taxa[args.taxa]
+    taxalevel = c__dict_taxa[args.taxalevel]
 
     fh = wu.try_open( args.out, "w" )
     writertaxa = csv.writer( fh, dialect="excel-tab" )
-    fh2 = wu.try_open( 'waafle-genes_' + args.genemerge + '.gff', "w" )
-    writergff = csv.writer( fh2, dialect="excel-tab" ) 
-    writertaxa.writerow( ["contig", "contiglen", "genenum", "strand", "genestart", "geneend", "taxa", "taxastart", "taxaend", "score", "percid", "coverage", "uniref50", "uniref90", "orghitnum"] )
+    writertaxa.writerow( ["contig", "contiglen", "genenum", "strand", "genestart", "geneend", "taxa", "taxastart", "taxaend", "score", "uniref50", "uniref90", "orghitnum"] )
        
-    #Merge genes based on options
-    dict_contiggenes = {}
-    for contig, genes in wu.iter_contig_genes( args.gff ):
-        newgenecoords = combine_genes( genes, args.genemerge, args.overlap )
-        dict_contiggenes[contig] = newgenecoords
-        
+    #Build dictionary of genes
+    dict_genes = {}
+    for contig, genelist in wu.iter_contig_genes( args.gff ):
+        dict_genes[contig] = genelist
+
     #Group taxa based on new genes
-    for contig, contighits in wu.iter_contig_hits( args.blast ):
-        if contig in dict_contiggenes:
-            contiggenes = dict_contiggenes[contig]
-            genelist = wu.filter_genes( contiggenes, contighits, args.overlap, args.length, args.scov_genes, args.scov_hits )
-            gfflist = wu.write_gff( contig, genelist )
-            for gff in gfflist:
-                writergff.writerow( gff )
-                newgene = wu.GFF( gff )
-                start, end, strand = newgene.start, newgene.end, newgene.strand
-                genehits, info = wu.hits2genes( start, end, strand, contighits, args.overlap, args.scov_hits )
-                
-                #score orgs 
-                taxalist = hits2taxa( contig, newgene, genehits, taxalevel, info[1], info[2] )
+    for contig, hitlist in wu.iter_contig_hits( args.blast ):
+        if contig in dict_genes:
+            genelist = dict_genes[contig]
+            contiglen = hitlist[0].qlen
+        
+            for gene in genelist:
+                info = hits2genes( gene, hitlist, args.strand, args.overlap_hits, args.scov_hits, taxalevel )
+                taxalist = score_taxa( gene, info, contiglen )
+           
                 for taxa in taxalist:
-                    writertaxa.writerow( taxa )
+                    writertaxa.writerow( wu.print_taxa( taxa ) )
     fh.close()
-    fh2.close()
 
 if __name__ == "__main__":
     main()

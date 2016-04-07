@@ -12,6 +12,7 @@ Eric Franzosa
 
 from __future__ import print_function # python 2.7+ required
 import os, sys, csv, argparse, re
+from operator import itemgetter, attrgetter, methodcaller
 import numpy as np
 from collections import Counter
 
@@ -57,6 +58,7 @@ c_gfffields = [
 
 c_taxafields = [
     ["contig", str],
+    ["length", int],
     ["gene", int],
     ["strand", str],
     ["genestart", int],
@@ -65,8 +67,6 @@ c_taxafields = [
     ["taxastart", str],
     ["taxaend", str],
     ["score", float],
-    ["percid", float],
-    ["genecov", float],
     ["uniref50", str],
     ["uniref90", str],
     ["hits", int],
@@ -112,13 +112,13 @@ class Hit( ):
             sstart, send = self.sstart, self.send
         self.ltrim = max( 0, sstart - self.qstart )
         self.rtrim = max( 0, self.slen - sstart - self.qlen + self.qstart )
-        self.scov_modified = ( send - sstart + 1 ) / max( float( self.slen - self.ltrim - self.rtrim ), float( send - sstart + 1 ) )
+        self.scov_modified = ( send - sstart + 1 ) / float( self.slen - self.ltrim - self.rtrim )
         # values extracted from chocophlan header
         chocoitems = self.sseqid.split( c_choco_header_delim )
         self.taxid = chocoitems[5]
         self.taxonomy = chocoitems[6].split( c_tax_delim )
-        self.uniref90 = chocoitems[7]
-        self.uniref50 = chocoitems[8]
+        self.uniref90 = chocoitems[7].split('_')[1]
+        self.uniref50 = chocoitems[8].split('_')[1]
 
 
 class GFF( ):
@@ -143,16 +143,23 @@ class GFF( ):
     def __init__( self, gffrow ):
         for [fname, ftype], value in zip( c_gfffields, gffrow ):
        	    setattr( self, fname, ftype( value ) )
-        
-    def genenum ( self, attribute ):
+    
+    #attributes are complex, format as dictionary
+    def sepattr( self, attribute ):
         attritems = attribute.split( ';' )
-	for items in attritems:
-            if len( items.split( '=' ) ) == 2:
-                label, descriptor = items.split( '=' )[0], items.split( '=' )[1]
+        dict_attr = {}
+        for items in attritems:
+            if len(items.split('=')) == 2:
+                label, descriptor = items.split('=')[0], items.split('=')[1]
+                dict_attr[label] = descriptor
                 if label == 'ID':
                     lastindex = descriptor.rindex( '_' )
-                    self.genenum = int( descriptor[lastindex + 1:] )
-
+                    self.genenum = int( descriptor[lastindex+1:] )
+                if label == 'Uniref50':
+                    self.uniref50 = descriptor
+                if label == 'Uniref90':
+                    self.uniref90 = descriptor
+        self.attr = dict_attr
 
 class Taxa( ):
     """
@@ -179,6 +186,32 @@ class Taxa( ):
     def __init__( self, taxainfo ):
         for [fname, ftype], value in zip( c_taxafields, taxainfo ):
             setattr( self, fname, ftype( value ) )
+
+class INode:
+    """interval node: represents an interval + some network properties""" 
+    def __init__( self, start, stop, strand="+" ):
+        self.start, self.stop = sorted( [start, stop] )
+        self.strand = strand
+        self.neighbors = set()
+        self.visited = False
+    def __len__( self ):
+        return self.stop - self.start + 1
+    def attach( self, node ):
+        self.neighbors.update( [node] )
+    def get_connected_component( self ):
+        # modified to use breadth-first search
+        cc, front = {self}, {self}
+        while any( [not inode.visited for inode in front] ):
+            new_front = set()
+            for inode in front:
+                if not inode.visited:
+                    inode.visited = True
+                    new_front.update( inode.neighbors )
+            cc.update( new_front )
+            front = new_front
+        return list( cc )
+    def to_list( self ):
+        return [self.start, self.stop, self.strand] 
 
 # ---------------------------------------------------------------
 # functions
@@ -225,17 +258,17 @@ def iter_contig_genes( gfffile ):
     """
     contig, genes = None, []
     with try_open( gfffile ) as fh:
-	for row in csv.reader( fh, dialect="excel-tab" ):
-	    if not re.search( r'^#', row[0] ):
-		gene = GFF( row )
-                gene.genenum( gene.attribute )
-		if contig is not None and gene.seqname != contig:
+        for row in csv.reader( fh, dialect="excel-tab" ):
+            if not re.search( r'^#', row[0] ):
+                gene = GFF( row )
+                if contig is not None and gene.seqname != contig:
                     yield contig, genes
+                    # reset
                     genes = []
-	        contig = gene.seqname
-		genes.append( gene )
-	# last case cleanup
-	yield contig, genes
+                contig = gene.seqname
+                genes.append( gene )
+	    # last case cleanup
+        yield contig, genes
 
 def iter_contig_taxa( orgfile ):
     """
@@ -252,7 +285,7 @@ def iter_contig_taxa( orgfile ):
                     taxa = []
                 contig = taxon.contig
                 taxa.append( taxon )
-        # last case cleanup
+        #last case cleanup
         yield contig, taxa
 		
 def calc_overlap( onestart, oneend, twostart, twoend ):
@@ -267,7 +300,13 @@ def calc_overlap( onestart, oneend, twostart, twoend ):
         overlap = float( ( coord_sorted[2] - coord_sorted[1] + 1 )/divisor )
         return overlap
 
-def find_ends( indexscore_sort ):
+def convert_strand( strandw ):
+    strand = '-'
+    if strandw == 'plus':
+        strand = '+'
+    return strand
+
+def find_ends( indexscore_sort, status ):
     """
     Find start and stop sites for hits that correspond to a single taxon in a gene.
     There may be multiple starts and stops. The output corresponds to each other.
@@ -284,9 +323,12 @@ def find_ends( indexscore_sort ):
                 startlist.append( sindex )
         if i == len( indexscore_sort ) - 2:
             endlist.append( sindex )
-    return ','.join( [str(x) for x in startlist] ), ','.join( [str(x) for x in endlist] )
+    if status == 'gene':
+        return str(min(startlist)), str(max(endlist))
+    else:
+        return ','.join( [str(x) for x in startlist] ), ','.join( [str(y) for y in endlist] )
 
-def score_hits( hitlist, genestart, geneend ):
+def score_hits( hitlist, genestart, geneend, status ):
     """
     Loop through set of hits that correspond to something (gene or taxon).
     Calculate a score for each hit. Score = Percent identity * Coverage.
@@ -319,7 +361,7 @@ def score_hits( hitlist, genestart, geneend ):
         #finalcov = len( dict_indexscore.keys() )/float( genelen ) #gcov
         finalscore = np.sum( [x[1][0] for x in dict_indexscore.items()] )/float( genelen ) 
         index_sort = sorted( dict_indexscore.keys() )
-        calcstart, calcend = find_ends( index_sort )
+        calcstart, calcend = find_ends( index_sort, status )
     return finalscore, finalpercid, finalcov, calcstart, calcend
 
 def hits2genes( genestart, geneend, genesign, hitlist, overlap_thresh, scov): #Add in assign Unirefs
@@ -330,12 +372,16 @@ def hits2genes( genestart, geneend, genesign, hitlist, overlap_thresh, scov): #A
     """
     if genesign == '+':
         wsign = 'plus'
-    else:
+    elif genesign == '-':
         wsign = 'minus'
+    else:
+        wsign = '.'
     genehits = []
     counter, uniref50list, uniref90list, info = 0, [], [], []
     for hit in hitlist:
         overlap = calc_overlap( genestart, geneend, hit.qstart, hit.qend)
+        if genesign == '.':
+            wsign = hit.sstrand
         if overlap >= overlap_thresh and hit.sstrand == wsign and hit.scov_modified >= scov:
             genehits.append( hit )
             counter += 1
@@ -347,6 +393,122 @@ def hits2genes( genestart, geneend, genesign, hitlist, overlap_thresh, scov): #A
     info = [counter, uniref50_format, uniref90_format]
     return genehits, info
 
+def write_gff( contig, genelist ):
+    """
+    For each contig, sort all genes by start coordinate regardless of strand.
+    Output each gene in gff format to a new file.
+    """
+    gfflist = []
+    counter = 1
+    for gene in genelist:
+        gffrow = GFF( [] )
+        gffrow.seqname = contig
+        gffrow.source = 'WAAFLE'
+        gffrow.feature = 'CDS'
+        gffrow.start = gene[0]
+        gffrow.end = gene[1]
+        gffrow.score = gene[3]
+        gffrow.strand = gene[2]
+        gffrow.frame = '0'
+        ID = 'ID=' + contig + '_' + str(counter)
+        Uniref50 = 'Uniref50=' + gene[4]
+        Uniref90 = 'Uniref90=' + gene[5]
+        gffrow.attribute = ';'.join( [ID, Uniref50, Uniref90] )
+        counter += 1
+        gffline = print_gff( gffrow )
+        gfflist.append( gffline )
+    return gfflist
+
+def print_gff( gffrow ):
+    """
+    Format the gff class into an ordered list for printing.
+    """
+    gfflist = [ gffrow.seqname,
+                gffrow.source,
+                gffrow.feature,
+                gffrow.start,
+                gffrow.end,
+                gffrow.score,
+                gffrow.strand,
+                gffrow.frame,
+                gffrow.attribute
+                ]
+    return gfflist
+
+def filter_genes( genelist, hitlist, lap_h, length, scov_genes, scov_hits ):
+    """
+    First, group hits into genes.
+    Second, filter genes based on length, scoverage, or # of BLAST hits.
+    """
+    genelist_filtered = []
+    for start, end, strand in genelist:
+        gene_hits, gene_info = hits2genes( start, end, strand, hitlist, lap_h, scov_hits )
+        genelen = end - start + 1
+        if len(gene_hits) == 0:
+            gene_score, gene_percid, gene_cov, gene_starts, gene_ends = 0, 0, 0, 0, 0
+        else:
+            gene_score, gene_percid, gene_cov, gene_starts, gene_ends = score_hits( gene_hits, start, end, 'gene' )
+        if gene_cov >= scov_genes and genelen >= length:
+            genelist_filtered.append( [start, end, strand, gene_score, gene_info[1], gene_info[2]] )
+    return genelist_filtered
+
+def coords2groups( coordslist, overlap_thresh ):
+    """
+    Bin a list of hits into groups by start/end coordinates.
+    """
+    groups = []
+    for start, end, strand in coordslist:
+        group_add = False
+        if len( groups )== 0:
+            groups.append( [start, end, strand] )
+        else:
+            for i in range( len( groups ) ):
+                overlap = calc_overlap( groups[i][0], groups[i][1], start, end )
+                if overlap >= overlap_thresh:
+                   coord_sorted = sorted( [groups[i][0], groups[i][1], start, end] )
+                   groups[i] = [coord_sorted[0], coord_sorted[3], strand]
+                   group_add = True
+                if i == len( groups ) - 1 and group_add == False:
+                   groups.append( [start, end, strand] )
+    return groups
+
+def groups2genes( groups, overlap_thresh ):
+    """
+    Sort groups by start/end coordinates.
+    Bin a list of groups into genes by start/end coordinates (of groups).
+    """
+    genes = []
+    #Sort groups by end and start coordinates
+    for gene in groups:
+        length = int(gene[1]) - int(gene[0])
+        gene.append( length )
+    groups.sort( key=itemgetter( 3 ), reverse=True )
+    group_sorted = [x[0:3] for x in groups]
+    if len(groups) == 1:
+        genes = group_sorted
+    else:
+        genes = coords2groups( group_sorted, overlap_thresh )
+    return genes
+
+def print_taxa( taxa ):
+    """
+    Format the taxa class into an ordered list for printing.
+    """
+    orderedlist = [ str( taxa.contig ),
+                    str( taxa.length ),
+                    str( taxa.gene ),
+                    str( taxa.strand ),
+                    str( taxa.genestart ),
+                    str( taxa.geneend ),
+                    str( taxa.taxa ),
+                    str( taxa.taxastart ),
+                    str( taxa.taxaend ),
+                    str( taxa.score ),
+                    str( taxa.uniref50 ),
+                    str( taxa.uniref90 ),
+                    str( taxa.hits ),
+                    ]
+    return orderedlist
 
 # ---------------------------------------------------------------
 # tests

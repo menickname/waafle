@@ -67,8 +67,6 @@ c_taxafields = [
     ["taxastart", str],
     ["taxaend", str],
     ["score", float],
-    ["percid", float],
-    ["genecov", float],
     ["uniref50", str],
     ["uniref90", str],
     ["hits", int],
@@ -114,13 +112,13 @@ class Hit( ):
             sstart, send = self.sstart, self.send
         self.ltrim = max( 0, sstart - self.qstart )
         self.rtrim = max( 0, self.slen - sstart - self.qlen + self.qstart )
-        self.scov_modified = ( send - sstart + 1 ) / max( float( self.slen - self.ltrim - self.rtrim ), float( send - sstart + 1 ) )
+        self.scov_modified = ( send - sstart + 1 ) / float( self.slen - self.ltrim - self.rtrim )
         # values extracted from chocophlan header
         chocoitems = self.sseqid.split( c_choco_header_delim )
         self.taxid = chocoitems[5]
         self.taxonomy = chocoitems[6].split( c_tax_delim )
-        self.uniref90 = chocoitems[7]
-        self.uniref50 = chocoitems[8]
+        self.uniref90 = chocoitems[7].split('_')[1]
+        self.uniref50 = chocoitems[8].split('_')[1]
 
 
 class GFF( ):
@@ -151,15 +149,16 @@ class GFF( ):
         attritems = attribute.split( ';' )
         dict_attr = {}
         for items in attritems:
-            label, descriptor = items.split('=')[0], items.split('=')[1]
-            dict_attr[label] = descriptor
-            if label == 'ID':
-                lastindex = descriptor.rindex( '_' )
-                self.genenum = int( descriptor[lastindex+1:] )
-            if label == 'Uniref50':
-                self.uniref50 = descriptor
-            if label == 'Uniref90':
-                self.uniref90 = descriptor
+            if len(items.split('=')) == 2:
+                label, descriptor = items.split('=')[0], items.split('=')[1]
+                dict_attr[label] = descriptor
+                if label == 'ID':
+                    lastindex = descriptor.rindex( '_' )
+                    self.genenum = int( descriptor[lastindex+1:] )
+                if label == 'Uniref50':
+                    self.uniref50 = descriptor
+                if label == 'Uniref90':
+                    self.uniref90 = descriptor
         self.attr = dict_attr
 
 class Taxa( ):
@@ -187,6 +186,32 @@ class Taxa( ):
     def __init__( self, taxainfo ):
         for [fname, ftype], value in zip( c_taxafields, taxainfo ):
             setattr( self, fname, ftype( value ) )
+
+class INode:
+    """interval node: represents an interval + some network properties""" 
+    def __init__( self, start, stop, strand="+" ):
+        self.start, self.stop = sorted( [start, stop] )
+        self.strand = strand
+        self.neighbors = set()
+        self.visited = False
+    def __len__( self ):
+        return self.stop - self.start + 1
+    def attach( self, node ):
+        self.neighbors.update( [node] )
+    def get_connected_component( self ):
+        # modified to use breadth-first search
+        cc, front = {self}, {self}
+        while any( [not inode.visited for inode in front] ):
+            new_front = set()
+            for inode in front:
+                if not inode.visited:
+                    inode.visited = True
+                    new_front.update( inode.neighbors )
+            cc.update( new_front )
+            front = new_front
+        return list( cc )
+    def to_list( self ):
+        return [self.start, self.stop, self.strand] 
 
 # ---------------------------------------------------------------
 # functions
@@ -274,6 +299,12 @@ def calc_overlap( onestart, oneend, twostart, twoend ):
         coord_sorted = sorted( [onestart, oneend, twostart, twoend] )
         overlap = float( ( coord_sorted[2] - coord_sorted[1] + 1 )/divisor )
         return overlap
+
+def convert_strand( strandw ):
+    strand = '-'
+    if strandw == 'plus':
+        strand = '+'
+    return strand
 
 def find_ends( indexscore_sort, status ):
     """
@@ -404,14 +435,14 @@ def print_gff( gffrow ):
                 ]
     return gfflist
 
-def filter_genes( genelist, hitlist, overlap, length, scov_genes, scov_hits ):
+def filter_genes( genelist, hitlist, lap_h, length, scov_genes, scov_hits ):
     """
     First, group hits into genes.
     Second, filter genes based on length, scoverage, or # of BLAST hits.
     """
     genelist_filtered = []
     for start, end, strand in genelist:
-        gene_hits, gene_info = hits2genes( start, end, strand, hitlist, overlap, scov_hits )
+        gene_hits, gene_info = hits2genes( start, end, strand, hitlist, lap_h, scov_hits )
         genelen = end - start + 1
         if len(gene_hits) == 0:
             gene_score, gene_percid, gene_cov, gene_starts, gene_ends = 0, 0, 0, 0, 0
@@ -473,8 +504,6 @@ def print_taxa( taxa ):
                     str( taxa.taxastart ),
                     str( taxa.taxaend ),
                     str( taxa.score ),
-                    str( taxa.percid ),
-                    str( taxa.genecov ),
                     str( taxa.uniref50 ),
                     str( taxa.uniref90 ),
                     str( taxa.hits ),
