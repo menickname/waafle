@@ -107,7 +107,7 @@ class Hit( ):
         self.qcov = ( abs( self.qend - self.qstart ) + 1 ) / float( self.qlen )
         # special scoverage that won't penalize hanging off contig end
         if self.sstrand == 'minus':
-            sstart, send = self.send, self.sstart
+            sstart, send = self.slen - self.sstart + 1, self.slen - self.send + 1
         else:
             sstart, send = self.sstart, self.send
         self.ltrim = max( 0, sstart - self.qstart )

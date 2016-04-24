@@ -111,6 +111,9 @@ def call_dr( ans_recip, ans_donor, waafle_recip, waafle_donor ):
 def main():
     args = get_args()
     dict_answerkey = {}
+
+    print('\t'.join( ['contig', 'call', 'answer_status', 'waafle_status', 'org_status', 'recipient/donor_status', 'answer_recipient/donor_orgs', 'top_waafle_orgs'] ) )
+
     for astrline in open( args.answerkey ):
         aastrline = astrline.strip().split('\t')
         taxalevel, contig, recip, donor, = aastrline[0], aastrline[1], aastrline[2], aastrline[3]
@@ -127,7 +130,7 @@ def main():
     
         #call status  
         ans_taxalevel = phylevels.index( dict_answerkey[contig][0] )
-        waafle_taxalevel = phylevels.index( args.scoredcontigs[args.scoredcontigs.rindex('_')+1] )
+        waafle_taxalevel = phylevels.index( bbstrline[4].split('_')[0] )
         if ans_taxalevel <= waafle_taxalevel:
             ans_status = 'LGT'
         else:
@@ -142,17 +145,17 @@ def main():
         orgcall, ansorgs, waafleorgs = callstatus[0], ';'.join( callstatus[1] ), ';'.join( callstatus[2] ) 
         
         #call donor-recip
-        waafle_recip, waafle_donor = bbstrline[5], bbstrline[6]
-        if waafle_recip == 'NA' or waafle_donor == 'NA':
+        if bbstrline[5] == 'NA':
             RD_call = 'No_RDCall'
         else:
+            waafle_recip, waafle_donor = bbstrline[5].split('-')[0], bbstrline[5].split('-')[1]
             RD_call, waafleorgs = call_dr( ans_reciplevel, ans_donorlevel, waafle_recip, waafle_donor )
         print('\t'.join( [contig, LGTcall, ans_status, waafle_status, orgcall, RD_call, ansorgs, waafleorgs] ) )
         
     for contig in dict_answerkey.keys():
         if contig not in set_waafle_contigs:
             ans_taxalevel = phylevels.index( dict_answerkey[contig][0] )
-            waafle_taxalevel = phylevels.index( args.scoredcontigs[args.scoredcontigs.rindex('_')+1] )
+            waafle_taxalevel = phylevels.index( dict_answerkey[contig][1].split('_')[0] )
             ans_status, LGTcall = "", ""
             if ans_taxalevel <= waafle_taxalevel:
                 ans_status = 'LGT'
