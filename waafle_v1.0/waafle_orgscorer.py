@@ -23,13 +23,13 @@ from collections import Counter
 # ---------------------------------------------------------------
 
 c__dict_taxa = {
-    "k": 0,
-    "p": 1,
-    "c": 2,
-    "o": 3,
-    "f": 4,
-    "g": 5,
-    "s": 6,
+    "k": 1,
+    "p": 2,
+    "c": 3,
+    "o": 4,
+    "f": 5,
+    "g": 6,
+    "s": 7,
 }
 
 c__list_taxa = ["k", "p", "c", "o", "f", "g", "s"]
@@ -103,7 +103,7 @@ def hits2genes( gene, hits, strand_specific, lap, scov, taxalevel ):
             overlap = calc_overlap( hit.qstart, hit.qend, gene.start, gene.end )    
             if overlap > lap:
                 genehits.append( hit )
-                taxaset.add( hit.taxonomy[taxalevel] )
+                taxaset.add( '|'.join( hit.taxonomy[:taxalevel] ) )
                 uniref50.append( hit.uniref50 )
                 uniref90.append( hit.uniref90 )
     uniref50_c = ','.join( [ str(x) + ':' + str(y) for x, y in Counter( uniref50 ).most_common( 3 )] )
@@ -123,7 +123,7 @@ def score_taxa( gene, info, contiglen ):
     taxalist = []
     if len( genehits ) == 0:
         #set unknown taxa or output
-        taxa = c__list_taxa[taxalevel] + '__Unknown'
+        taxa = c__list_taxa[taxalevel-1] + '__Unknown'
         start_list, end_list, score = gene.start, gene.end, 1 
         taxa = wu.Taxa( [gene.seqname, contiglen, gene.genenum, gene.strand, gene.start, gene.end, taxa, start_list, end_list, score, 'No_Uniref50', 'No_Uniref90', 0] )
         taxalist.append( taxa )
@@ -133,7 +133,7 @@ def score_taxa( gene, info, contiglen ):
             dict_orgscores.setdefault( taxa, np.zeros( genelen ) )
             numhits = 0
             for hit in genehits:
-                if hit.taxonomy[taxalevel] == taxa:
+                if '|'.join( hit.taxonomy[:taxalevel] ) == taxa:
                     numhits += 1
                     orgarray = dict_orgscores.get( taxa )
                     hitarray = np.zeros( genelen )

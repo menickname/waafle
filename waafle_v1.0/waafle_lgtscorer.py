@@ -163,17 +163,19 @@ def find_taxa_order( contigarray, taxaorder, orgpair ):
     for i in range( len( twobugmax ) ):
         element = twobugmax[i]
         one_element, two_element = array_one[i], array_two[i]
-        if element == one_element:
+        if element == one_element and element == two_element:
+            element_list.append( [top_one, top_two] )
+            taxastring += 'C'
+        elif element == one_element and element != two_element:
             element_list.append( top_one )
             taxastring += 'A'
-            state = top_one
         else:
             element_list.append( top_two )
             taxastring += 'B'
-            state = top_two
-        if i != 0:
-            if element_list[i-1] != state:
-                shift_counter += 1
+    reduced_taxastring = taxastring.replace( 'C', '')
+    for j in range( len( reduced_taxastring ) -1 ):
+        if reduced_taxastring[j] != reduced_taxastring[j+1]:
+            shift_counter += 1
     return element_list, taxastring, shift_counter
 
 
@@ -200,9 +202,13 @@ def calc_twobug( array, bugindex ):
     twobuglist = []
     for info in complement_sorted:
         element_list, taxastring, shift = find_taxa_order( array, bugindex, info[0] )
-        if info[1] == twobugscore and info[2] >= twobugavg and len(set(element_list)) > 1:
+        lgt_status = False
+        reduced_taxastring = taxastring.replace( 'C', '')
+        if len( reduced_taxastring ) == 2:
+            lgt_status = True
+        if info[1] == twobugscore and info[2] >= twobugavg and lgt_status == True:
             twobuglist.append( info[0] )
-        elif info[1] == twobugscore and info[2] >= twobugavg and len(set(element_list)) <= 1:
+        elif info[1] == twobugscore and info[2] >= twobugavg and lgt_status == False:
             twobugscore = 0
             twobuglist = ['None-None']
             break
@@ -222,8 +228,10 @@ def calc_donorrecip( contigarray, taxaorder, taxa ):
         recipient, donor, status = '', '', ''
         top_one, top_two = orgs.split('-')[0], orgs.split('-')[1]
         element_list, taxastring, shift_counter = find_taxa_order( contigarray, taxaorder, orgs )
-        if shift_counter == 2 and element_list[0] == element_list[len( element_list ) - 1]:
-            recipient = element_list[0]
+        reduced_taxastring = taxastring.replace( 'C', '' )
+        if shift_counter == 2 and reduced_taxastring[0] == reduced_taxastring[-1]:
+            recip_index = taxastring.index( reduced_taxastring[0] )
+            recipient = element_list[ recip_index ]
             if recipient == top_one:
                 donor = top_two
             else:
@@ -284,22 +292,22 @@ def find_uniref( status, contigarray, taxaorder, taxa, taxalist ):
     return taxastringlist, uniref50list, uniref90list
 
 
-def print_result( contig, length, status, score, orgs, rdstatus_list, taxaannot, uniref50, uniref90 ):
+def print_result( contig, length, status, onescore, twoscore, orgs, rdstatus_list, taxaannot, uniref50, uniref90 ):
     """
     Print out the results in a neat list.
     """
-    orglist = []
-    if len(orgs) > 1:
-        if len(orgs) > 3:
-            orglist = orgs[0:3]
-            orglist.append( str(len( orgs) - 1 - 3 ) + ' other taxa with same score' )
-            orgs = orglist
+    #orglist = []
+    #if len(orgs) > 1:
+    #    if len(orgs) > 3:
+    #        orglist = orgs[0:3]
+    #        orglist.append( str(len( orgs) - 1 - 3 ) + ' other taxa with same score' )
+    #        orgs = orglist
     finalorgs = ';'.join( orgs )
     rdstatus = ';'.join(rdstatus_list)
     finaltaxaannot = ';'.join( taxaannot )
     finaluniref50 = '|'.join(uniref50)
     finaluniref90 = '|'.join(uniref90)
-    return [str(x) for x in [contig, length, status, score, finalorgs, rdstatus, finaltaxaannot, finaluniref50, finaluniref90] ]
+    return [str(x) for x in [contig, length, status, onescore, twoscore, finalorgs, rdstatus, finaltaxaannot, finaluniref50, finaluniref90] ]
     
 
 # ---------------------------------------------------------------
@@ -316,7 +324,7 @@ def main():
     args = get_args()
     with wu.try_open( args.out, "w" ) as fh:
         writer = csv.writer( fh, dialect="excel-tab" )
-        writer.writerow( ['contig', 'contiglen', 'status', 'score', 'taxa', 'recipient-donor', 'taxaorder', 'uniref50', 'uniref90'] )
+        writer.writerow( ['contig', 'contiglen', 'status', 'onebug_score', 'twobug_score', 'taxa', 'recipient-donor', 'taxaorder', 'uniref50', 'uniref90'] )
         for contig, taxalist in wu.iter_contig_taxa( args.input ):
             contiglen = taxalist[0].length
             contigarray, taxaorder = generate_tables( taxalist )
@@ -325,13 +333,16 @@ def main():
             spikearray, spikeorder = spike_unknown( contigarray, taxaorder, args.unknown )
             onebugscore, onebuglist = calc_onebug( spikearray, spikeorder )
             numbugs, numgenes = spikearray.shape
+            if numgenes == 1 or numbugs == 1:
+                twobugscore, twobuglist = 0, ["NA"]
+            else:
+                twobugscore, twobuglist = calc_twobug( spikearray, spikeorder )
             rdstatus_list = ['NA']
                     
-            if onebugscore >= args.onebug or numgenes == 1 or numbugs == 1:
+            if onebugscore >= args.onebug: #numgenes == 1 or numbugs == 1:
                 score, taxa = onebugscore, onebuglist
                 status = "NoLGT"
             else:
-                twobugscore, twobuglist = calc_twobug( spikearray, spikeorder )
                 if twobugscore >= args.twobug:
                     score, taxa = twobugscore, twobuglist
                     rdstatus_list = calc_donorrecip( spikearray, spikeorder, twobuglist )
@@ -341,7 +352,7 @@ def main():
                     if status == 'ambiguous-LGT':
                         rdstatus_list = calc_donorrecip( spikearray, spikeorder, twobuglist )
             taxaannot, uniref50, uniref90 = find_uniref( status, spikearray, spikeorder, taxa, taxalist ) 
-            result_line = print_result( contig, contiglen, status, score, taxa, rdstatus_list, taxaannot, uniref50, uniref90 )
+            result_line = print_result( contig, contiglen, status, onebugscore, twobugscore, taxa, rdstatus_list, taxaannot, uniref50, uniref90 )
             writer.writerow( result_line )
             
             

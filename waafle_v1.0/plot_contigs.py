@@ -1,6 +1,9 @@
 #!/usr/bin/env/python
 
 from __future__ import print_function
+import matplotlib
+matplotlib.use('Agg')
+
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import argparse
@@ -21,7 +24,12 @@ def get_args():
     parser.add_argument(
         "-i", "--waafle",
         required=True,
-        help="output from waafle"
+        help="output from waafle orgscorer"
+        )
+    parser.add_argument(
+        "-r", "--results",
+        required=True,
+        help="output from waafle lgtscorer"
         )
     parser.add_argument(
         "-refgenes", "--ref_genes",
@@ -77,16 +85,33 @@ def main():
             recip = aastrline[2].split('|')[index]
             dict_reforgs[ aastrline[1] ] = [recip, donor]
 
+    # Parse final results into dict
+    dict_results = {}
+    for contiginfo in open( args.results ):
+        line = contiginfo.strip().split('\t')
+        if line[0] == 'contig':
+            continue
+        else:
+            result = wu.Result( contiginfo.strip().split('\t') )
+            status, onebug, twobug, taxa, dr, synteny = wu.split_info( result.pref_call )
+            dict_results[ result.contig ] = [ status, taxa, dr ]
+
     # Loop through list of contigs
     for astrline in open( args.contiglist ):
         contig = astrline.strip()
         taxalist = dict_mytaxa[contig]
-  
+        results = dict_results[contig]
+        
         # Arrange waafle genes in data structure
         orglabels = []
         dict_waaflegenes = {}
+        counter_taxa = 0
         for taxa in taxalist:
             orglabels.append( taxa.taxa )
+            t_index = min( taxalevels[ results[1][0].split('__')[0] ], taxalevels[args.taxalevel] )
+            abbr_taxa = taxa.taxa.split('|')[t_index]
+            if abbr_taxa in results[1]:
+                counter_taxa += 1
             if taxa.strand == '+':
                 dict_waaflegenes[taxa.gene] = [taxa.genestart, taxa.geneend, taxa.uniref50, taxa.uniref90]
             else:
@@ -94,11 +119,18 @@ def main():
 
         # Make colors for taxa
         orgset = set(orglabels)
-        colors = cm.Accent(np.linspace(0, 1, len(orgset)))
+        bcolors = cm.RdYlBu(np.linspace(0, 1, counter_taxa))
         dict_taxacolor = {}
+        counter = 0
         for i in range( len( list(orgset) ) ):
-            dict_taxacolor[list(orgset)[i]] = colors[i]
-
+            t_index = min( taxalevels[ results[1][0].split('__')[0] ], taxalevels[args.taxalevel] )
+            abbr_taxa = list(orgset)[i].split('|')[t_index]
+            if abbr_taxa in results[1]:
+                dict_taxacolor[list(orgset)[i]] = bcolors[counter]
+                counter += 1
+            else: 
+                dict_taxacolor[list(orgset)[i]] = 'grey' #colors[i]
+        
         # Arrange taxa in data structure
         dict_waafletaxa = {}
         contiglen = 0
@@ -122,7 +154,6 @@ def main():
         taxarows = len(orgset)/6 + 1
         generows = len( dict_waaflegenes.keys() )/6 + 1
         rows = 4 + taxarows + generows
-        print( rows, 'rows' )
         fig = plt.figure(figsize=(12, rows*3))
         h_waafle = plt.subplot2grid( (rows,1), (0,0), rowspan=2, colspan=1 )
         h_waaflegenes = plt.subplot2grid( (rows,1), (2,0), rowspan=1, colspan=1 )        
@@ -136,13 +167,18 @@ def main():
             scores, starts, ends = dict_waafletaxa[taxa][0], [int(x) for x in dict_waafletaxa[taxa][1]], [int(y) for y in dict_waafletaxa[taxa][2]]
             headlen = contiglen/50
             diffs = list(np.array(ends) - np.array(starts))
-            print( contig, taxa, starts, scores, diffs, headlen )
             for i in range( len( scores ) ):
-                h_waafle.arrow( starts[i], scores[i], diffs[i], 0, width=0.02, color=dict_taxacolor[taxa], head_width=0.02, head_length=headlen, alpha=0.4 )
+                if dict_taxacolor[taxa] != 'grey':
+                    h_waafle.arrow( starts[i], scores[i], diffs[i], 0, width=0.02, color=dict_taxacolor[taxa], head_width=0.02, head_length=headlen, alpha=0.4 )
+                else:
+                    h_waafle.arrow( starts[i], scores[i], diffs[i], 0, width=0.02, color=dict_taxacolor[taxa], head_width=0.02, head_length=headlen, alpha=0.1 )
             ylab -= 1
-            p = patches.Rectangle( (0, ylab), contiglen/20, 1, color=dict_taxacolor[taxa], alpha=0.4 )
+            if dict_taxacolor[taxa] != 'grey':
+                p = patches.Rectangle( (0, ylab), contiglen/20, 1, color=dict_taxacolor[taxa], alpha=0.4)
+            else:
+                p = patches.Rectangle( (0, ylab), contiglen/20, 1, color=dict_taxacolor[taxa], alpha=0.1 )
             h_legend.add_patch(p)
-            h_legend.text( contiglen/20, ylab + 0.5, str(taxa), fontsize=contiglen/200 )
+            h_legend.text( contiglen/20, ylab + 0.5, str(taxa), fontsize=8 ) #contiglen/200 )
             ylab -= 1
         h_waafle.set_ylim( -0.1, 1.1 )
         h_waafle.set_xlim( 0, contiglen ) 
@@ -162,7 +198,7 @@ def main():
             else:
                 score -= 0.1
             diff = dict_waaflegenes[gene][1] - dict_waaflegenes[gene][0]
-            h_waaflegenes.arrow( dict_waaflegenes[gene][0], score, diff, 0, width=0.04, color="blue", head_width=0.04, head_length=headlen, alpha=0.4 )
+            h_waaflegenes.arrow( dict_waaflegenes[gene][0], score, diff, 0, width=0.04, color="blue", head_width=0.04, head_length=headlen, alpha=0.9 )
             ylab -= 1
             h_geneleg.text(0, ylab, 'Gene' + str(gene) + ' Uniref50:' + dict_waaflegenes[gene][2], fontsize=8 )
             ylab -= 0.5
@@ -170,7 +206,7 @@ def main():
         
         h_waaflegenes.set_ylim( 0, 1 )
         h_waaflegenes.set_xlim( 0, contiglen )
-        h_waaflegenes.get_xaxis().set_ticks([])
+        h_waaflegenes.get_xaxis().set_ticks(np.arange( 0, contiglen, 50) )
         h_waaflegenes.get_yaxis().set_ticks([0, 0.5, 1]) 
         h_waaflegenes.set_ylabel( 'WAAFLE-genes' )
         h_geneleg.set_axis_off()
@@ -220,6 +256,7 @@ def main():
 
         filename = contig + '.png'
         plt.savefig( filename )
-        
+        plt.close(fig)
+ 
 if __name__ == "__main__":
     main()

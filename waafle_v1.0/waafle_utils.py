@@ -72,6 +72,34 @@ c_taxafields = [
     ["hits", int],
 ]
 
+c_scorerfields = [
+    ["contig", str],
+    ["length", int],
+    ["status", str],
+    ["onescore", float],
+    ["twoscore", float],
+    ["taxa", str],
+    ["rd", str],
+    ["synteny", str],
+    ["uniref50", str],
+    ["uniref90", str],
+]
+
+c_resultfields = [
+    ["contig", str],
+    ["uniref50", str],
+    ["uniref90", str],
+    ["pref_call", str],
+    ["unambig_call", str],
+    ["k", str],
+    ["p", str],
+    ["c", str],
+    ["o", str],
+    ["f", str],
+    ["g", str],
+    ["s", str],
+]
+
 # ---------------------------------------------------------------
 # classes for working with hits and gff (here to force equivalenence with output)
 # ---------------------------------------------------------------
@@ -185,6 +213,22 @@ class Taxa( ):
     """
     def __init__( self, taxainfo ):
         for [fname, ftype], value in zip( c_taxafields, taxainfo ):
+            setattr( self, fname, ftype( value ) )
+
+class Scores( ):
+    """
+    Processes the information from a single line after waafle_lgtscorer.py script;
+    """
+    def __init__( self, scorerinfo ):
+        for [fname, ftype], value in zip( c_scorerfields, scorerinfo ):
+            setattr( self, fname, ftype( value ) )
+
+class Result( ):
+    """
+    Processes the information from a single line after waafle_aggregator.py script.
+    """
+    def __init__( self, resultinfo ):
+        for [fname, ftype], value in zip( c_resultfields, resultinfo ):
             setattr( self, fname, ftype( value ) )
 
 class INode:
@@ -509,6 +553,55 @@ def print_taxa( taxa ):
                     str( taxa.hits ),
                     ]
     return orderedlist
+
+def split_info( info ):
+    """
+    Split the final output.
+    """
+    status, onebug, twobug, synteny = info.split(';')[0], info.split(';')[1], info.split(';')[2], info.split(';')[len( info.split(';') )-1]
+    finalindex = len( info.split(';') ) - 1
+    taxa = info.split(';')[3: finalindex]
+    dr = 'NA'
+    if re.search( 'NoLGT', status ):
+        alltaxa = taxa[0]
+        if re.search( ',', alltaxa ):
+            multipletaxa = alltaxa.split(',')
+            taxa = multipletaxa
+        else:
+            taxa = alltaxa
+    else:
+        settracker = set([])
+        setadder = set([])
+        if len( taxa ) > 3:
+            alltaxa = ';'.join( taxa ).split(',')
+            for i in range( len( alltaxa ) ):
+                taxapair = alltaxa[i]
+                taxa1, taxa2 = taxapair.split(';')[0], taxapair.split(';')[2]
+                if i == 0:
+                    settracker.add( taxa1 )
+                    settracker.add( taxa2 )
+                    setadder.add( taxa1 )
+                    setadder.add( taxa2 )
+                else:
+                    settracker = settracker & set([taxa1, taxa2])
+                    setadder = setadder | set([taxa1, taxa2])
+            if len( settracker ) == 1:
+                setfinal = setadder - settracker
+                taxa = list(setadder)
+            else:
+                taxa = list(setadder)
+        else:
+            taxa1, taxa2 = taxa[0], taxa[2]
+            taxa = [taxa1, taxa2] #
+            if taxa[1] == '>':
+                dr = 'r-d'
+            elif taxa[1] == '<':
+                dr = 'd-r'
+    return status, onebug, twobug, taxa, dr, synteny
+                    
+            
+            
+        
 
 # ---------------------------------------------------------------
 # tests
