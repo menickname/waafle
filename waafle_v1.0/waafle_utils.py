@@ -79,7 +79,6 @@ c_scorerfields = [
     ["onescore", float],
     ["twoscore", float],
     ["taxa", str],
-    ["rd", str],
     ["synteny", str],
     ["uniref50", str],
     ["uniref90", str],
@@ -87,6 +86,7 @@ c_scorerfields = [
 
 c_resultfields = [
     ["contig", str],
+    ["length", int],
     ["uniref50", str],
     ["uniref90", str],
     ["pref_call", str],
@@ -554,54 +554,28 @@ def print_taxa( taxa ):
                     ]
     return orderedlist
 
+
+
 def split_info( info ):
     """
-    Split the final output.
+    Split the info from 1 column in the final output.
     """
-    status, onebug, twobug, synteny = info.split(';')[0], info.split(';')[1], info.split(';')[2], info.split(';')[len( info.split(';') )-1]
-    finalindex = len( info.split(';') ) - 1
-    taxa = info.split(';')[3: finalindex]
-    dr = 'NA'
+    status, onebug, twobug, taxa, synteny = info.split(';')
     if re.search( 'NoLGT', status ):
-        alltaxa = taxa[0]
-        if re.search( ',', alltaxa ):
-            multipletaxa = alltaxa.split(',')
+        if re.search( ',', taxa ):
+            multipletaxa = taxa.split('|')
             taxa = multipletaxa
         else:
-            taxa = alltaxa
+            taxa = [taxa]
     else:
-        settracker = set([])
-        setadder = set([])
-        if len( taxa ) > 3:
-            alltaxa = ';'.join( taxa ).split(',')
-            for i in range( len( alltaxa ) ):
-                taxapair = alltaxa[i]
-                taxa1, taxa2 = taxapair.split(';')[0], taxapair.split(';')[2]
-                if i == 0:
-                    settracker.add( taxa1 )
-                    settracker.add( taxa2 )
-                    setadder.add( taxa1 )
-                    setadder.add( taxa2 )
-                else:
-                    settracker = settracker & set([taxa1, taxa2])
-                    setadder = setadder | set([taxa1, taxa2])
-            if len( settracker ) == 1:
-                setfinal = setadder - settracker
-                taxa = list(setadder)
-            else:
-                taxa = list(setadder)
-        else:
-            taxa1, taxa2 = taxa[0], taxa[2]
-            taxa = [taxa1, taxa2] #
-            if taxa[1] == '>':
-                dr = 'r-d'
-            elif taxa[1] == '<':
-                dr = 'd-r'
-    return status, onebug, twobug, taxa, dr, synteny
-                    
-            
-            
-        
+        taxalist = []
+        multipletaxa = re.split( '[><\?]', taxa )
+        for i in range(0, len( multipletaxa )-1, 2):
+            taxaone, taxatwo = multipletaxa[i].split('|'), multipletaxa[i+1].split('|') 
+            taxalist += taxaone
+            taxalist += taxatwo
+        taxa = taxalist
+    return status, onebug, twobug, taxa, synteny
 
 # ---------------------------------------------------------------
 # tests

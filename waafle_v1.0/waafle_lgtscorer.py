@@ -13,7 +13,7 @@ Run with the "-h" flag for usage help.
 """
 
 from __future__ import print_function # python 2.7+ required
-import os, sys, csv, argparse
+import os, sys, csv, argparse, re
 from operator import itemgetter, attrgetter, methodcaller
 import waafle_utils as wu
 import numpy as np
@@ -76,7 +76,6 @@ def spike_unknown( contigarray, taxaorder, unknown ):
     numorgs, numgenes = final_contigarray.shape
     taxalevel = taxaorder[0].split('__')[0]
     unknown_name = taxalevel + "__Unknown"
-    
     if numgenes == 0:
         return final_contigarray, final_taxaorder
     if unknown_name in taxaorder:
@@ -151,31 +150,38 @@ def calc_onebug( array, bugindex ):
     return onebugscore, onebuglist
 
 
-def find_taxa_order( contigarray, taxaorder, orgpair ):
+def find_taxa_order( status, contigarray, taxaorder, org ):
     """
-    Determines the order of taxa by gene number, aka ['TaxaA', 'TaxaB', 'TaxaA'] for [Gene1, Gene2, Gene3].
+    Returns order of taxa by gene number:
+    1) In a list, aka ['TaxaA', 'TaxaB', 'TaxaA'] for [Gene1, Gene2, Gene3].
+    2) As a string, aka 'ABA'
+    3) As well as number of shifts from A-->B or B-->A; C<-->A|B does not count.
     """
-    top_one, top_two = orgpair.split('-')[0], orgpair.split('-')[1]
-    index_one, index_two = taxaorder.index( top_one ), taxaorder.index( top_two )
-    array_one, array_two = contigarray[index_one, :], contigarray[index_two, :]
-    twobugmax = np.amax( np.array( [array_one, array_two] ), axis=0 )
     element_list, taxastring, shift_counter = [], '', 0
-    for i in range( len( twobugmax ) ):
-        element = twobugmax[i]
-        one_element, two_element = array_one[i], array_two[i]
-        if element == one_element and element == two_element:
-            element_list.append( [top_one, top_two] )
-            taxastring += 'C'
-        elif element == one_element and element != two_element:
-            element_list.append( top_one )
-            taxastring += 'A'
-        else:
-            element_list.append( top_two )
-            taxastring += 'B'
-    reduced_taxastring = taxastring.replace( 'C', '')
-    for j in range( len( reduced_taxastring ) -1 ):
-        if reduced_taxastring[j] != reduced_taxastring[j+1]:
-            shift_counter += 1
+    if status == 'LGT' or status == 'ambiguous-LGT':
+        top_one, top_two = re.split('[><?-]', org )
+        index_one, index_two = taxaorder.index( top_one ), taxaorder.index( top_two )
+        array_one, array_two = contigarray[index_one, :], contigarray[index_two, :]
+        twobugmax = np.amax( np.array( [array_one, array_two] ), axis=0 )
+        for i in range( len( twobugmax ) ):
+            element = twobugmax[i]
+            one_element, two_element = array_one[i], array_two[i]
+            if element == one_element and element == two_element:
+                element_list.append( [top_one, top_two] )
+                taxastring += 'C'
+            elif element == one_element and element != two_element:
+                element_list.append( top_one )
+                taxastring += 'A'
+            else:
+                element_list.append( top_two )
+                taxastring += 'B'
+        reduced_taxastring = taxastring.replace( 'C', '')
+        for j in range( len( reduced_taxastring ) -1 ):
+            if reduced_taxastring[j] != reduced_taxastring[j+1]:
+                shift_counter += 1
+    else:
+        numbugs, numgenes = contigarray.shape
+        element_list, taxastring = [org]*numgenes, 'A'*numgenes
     return element_list, taxastring, shift_counter
 
 
@@ -192,7 +198,6 @@ def calc_twobug( array, bugindex ):
             twobugarray = np.array( [bug1, bug2] )
             complement = np.min(np.amax(twobugarray, axis=0))
             average = np.mean(np.amax(twobugarray, axis=0))
-            #indices = np.argmax(twobugarray, axis=0)
             bugsort = sorted( [str(bugindex[i]), str(bugindex[j])] )
             bugnames = bugsort[0] + '-' + bugsort[1]
             complementlist.append( [ bugnames, complement, average ] )
@@ -201,10 +206,10 @@ def calc_twobug( array, bugindex ):
     twobugscore, twobugavg = complement_sorted[0][1], complement_sorted[0][2]
     twobuglist = []
     for info in complement_sorted:
-        element_list, taxastring, shift = find_taxa_order( array, bugindex, info[0] )
+        element_list, taxastring, shift = find_taxa_order( 'LGT', array, bugindex, info[0] )
         lgt_status = False
         reduced_taxastring = taxastring.replace( 'C', '')
-        if len( reduced_taxastring ) == 2:
+        if len( set( reduced_taxastring ) ) == 2:
             lgt_status = True
         if info[1] == twobugscore and info[2] >= twobugavg and lgt_status == True:
             twobuglist.append( info[0] )
@@ -223,26 +228,23 @@ def calc_donorrecip( contigarray, taxaorder, taxa ):
     The bug in between (eg. "B") is the donor. The bug that explains the outside genes (eg. "A") is the recipient.
     If there is only 1 transition, we call it "unknown". If there is more than 1 transition, we call it a "hybrid."
     """
-    ans = []
+    annottaxa = []
     for orgs in taxa:
-        recipient, donor, status = '', '', ''
+        newtaxa = ''
         top_one, top_two = orgs.split('-')[0], orgs.split('-')[1]
-        element_list, taxastring, shift_counter = find_taxa_order( contigarray, taxaorder, orgs )
+        element_list, taxastring, shift_counter = find_taxa_order( 'LGT', contigarray, taxaorder, orgs )
         reduced_taxastring = taxastring.replace( 'C', '' )
         if shift_counter == 2 and reduced_taxastring[0] == reduced_taxastring[-1]:
             recip_index = taxastring.index( reduced_taxastring[0] )
             recipient = element_list[ recip_index ]
             if recipient == top_one:
-                donor = top_two
+                newtaxa = top_one + '<' + top_two
             else:
-                donor = top_one
-            status = recipient + '-' + donor
-        elif shift_counter > 2:
-            status = 'NA' 
-        elif shift_counter == 1:
-            status = 'NA'
-        ans.append( status )
-    return ans
+                newtaxa = top_one + '>' + top_two
+        else:
+            newtaxa = top_one + '?' + top_two 
+        annottaxa.append( newtaxa )
+    return annottaxa
     
 
 def rank_ambiguous( onebugscore, onebuglist, twobugscore, twobuglist ):
@@ -261,53 +263,34 @@ def rank_ambiguous( onebugscore, onebuglist, twobugscore, twobuglist ):
 
 
 def find_uniref( status, contigarray, taxaorder, taxa, taxalist ):
-    taxastringlist, uniref50list, uniref90list = [], [], [] #single list of taxastrings per org, single list of Uniref by gene (for all orgs is same)
-    if status == 'LGT' or status == 'ambiguous-LGT':
-        for orgs in taxa:
-            element_list, taxastring, shift_counter = find_taxa_order( contigarray, taxaorder, orgs ) 
-            uniref50list = [ 'NoUniref' ]*len( element_list )
-            uniref90list = [ 'NoUniref' ]*len( element_list )
-            for i in range(len(element_list)):
-                for info in taxalist:
-                    if info.gene == i+1 and info.taxa == element_list[i] and uniref50list[i] == 'NoUniref':
-                        uniref50list[i] = info.uniref50
-                        uniref90list[i] = info.uniref90
-                    else:
-                        continue
-            taxastringlist.append(taxastring)
-    else:
-        for orgs in taxa:
-            numbugs, numgenes = contigarray.shape
-            uniref50list, uniref90list = [ 'NoUniref' ]*numgenes, [ 'NoUniref' ]*numgenes
-            taxastring = ''
-            for i in range(numgenes):
-                taxastring += 'A'
-                for info in taxalist:
-                    if info.gene == i+1 and info.taxa == orgs and uniref50list[i] == 'NoUniref':
-                        uniref50list[i] = info.uniref50
-                        uniref90list[i] = info.uniref90
-                    else:
-                        continue
-            taxastringlist.append(taxastring)
-    return taxastringlist, uniref50list, uniref90list
+    numbugs, numgenes = contigarray.shape
+    uniref50list, uniref90list = ['unknown']*numgenes, ['unknown']*numgenes
+    taxaset = set([])
+    for org in taxa:
+        if status == 'LGT' or status == 'ambiguous-LGT':
+            taxaone, taxatwo = re.split('[?><]', org )
+            taxaset.add( taxaone )
+            taxaset.add( taxatwo )
+        else:
+            taxaset.add( org )
+    for i in range( numgenes ):
+        for info in taxalist:
+            if info.gene == i+1 and info.taxa in taxaset:
+                uniref50list[i] = info.uniref50.replace(',', '|')
+                uniref90list[i] = info.uniref90.replace(',', '|')
+                break
+    return uniref50list, uniref90list
 
 
-def print_result( contig, length, status, onescore, twoscore, orgs, rdstatus_list, taxaannot, uniref50, uniref90 ):
+def print_result( contig, length, status, onescore, twoscore, orgs, taxaannot, uniref50, uniref90 ):
     """
     Print out the results in a neat list.
     """
-    #orglist = []
-    #if len(orgs) > 1:
-    #    if len(orgs) > 3:
-    #        orglist = orgs[0:3]
-    #        orglist.append( str(len( orgs) - 1 - 3 ) + ' other taxa with same score' )
-    #        orgs = orglist
-    finalorgs = ';'.join( orgs )
-    rdstatus = ';'.join(rdstatus_list)
-    finaltaxaannot = ';'.join( taxaannot )
-    finaluniref50 = '|'.join(uniref50)
-    finaluniref90 = '|'.join(uniref90)
-    return [str(x) for x in [contig, length, status, onescore, twoscore, finalorgs, rdstatus, finaltaxaannot, finaluniref50, finaluniref90] ]
+    finalorgs = '|'.join( [org.replace('|', '.') for org in orgs] ) #can't join with | because full names
+    finaltaxaannot = '|'.join( taxaannot ) #should follow orgs
+    finaluniref50 = ';'.join(uniref50)
+    finaluniref90 = ';'.join(uniref90)
+    return [str(x) for x in [contig, length, status, onescore, twoscore, finalorgs, finaltaxaannot, finaluniref50, finaluniref90] ]
     
 
 # ---------------------------------------------------------------
@@ -327,32 +310,42 @@ def main():
         writer.writerow( ['contig', 'contiglen', 'status', 'onebug_score', 'twobug_score', 'taxa', 'recipient-donor', 'taxaorder', 'uniref50', 'uniref90'] )
         for contig, taxalist in wu.iter_contig_taxa( args.input ):
             contiglen = taxalist[0].length
+
+            #Generate arrays
             contigarray, taxaorder = generate_tables( taxalist )
-            recipient, donor = "NA", "NA"
-           
             spikearray, spikeorder = spike_unknown( contigarray, taxaorder, args.unknown )
+
+            #Calculate onebug and twobug scores
             onebugscore, onebuglist = calc_onebug( spikearray, spikeorder )
             numbugs, numgenes = spikearray.shape
             if numgenes == 1 or numbugs == 1:
                 twobugscore, twobuglist = 0, ["NA"]
             else:
                 twobugscore, twobuglist = calc_twobug( spikearray, spikeorder )
-            rdstatus_list = ['NA']
                     
-            if onebugscore >= args.onebug: #numgenes == 1 or numbugs == 1:
+            #Apply thresholds for one/twobug scores
+            if onebugscore >= args.onebug: 
                 score, taxa = onebugscore, onebuglist
                 status = "NoLGT"
             else:
                 if twobugscore >= args.twobug:
                     score, taxa = twobugscore, twobuglist
-                    rdstatus_list = calc_donorrecip( spikearray, spikeorder, twobuglist )
+                    taxa = calc_donorrecip( spikearray, spikeorder, twobuglist ) #assign d/r if possible
                     status = "LGT"
                 else:
                     status, score, taxa = rank_ambiguous( onebugscore, onebuglist, twobugscore, twobuglist )
                     if status == 'ambiguous-LGT':
-                        rdstatus_list = calc_donorrecip( spikearray, spikeorder, twobuglist )
-            taxaannot, uniref50, uniref90 = find_uniref( status, spikearray, spikeorder, taxa, taxalist ) 
-            result_line = print_result( contig, contiglen, status, onebugscore, twobugscore, taxa, rdstatus_list, taxaannot, uniref50, uniref90 )
+                        taxa = calc_donorrecip( spikearray, spikeorder, twobuglist )
+
+            #Get synteny for all orgs
+            taxaannot = []
+            for org in taxa:
+                element_list, taxastring, shift_counter = find_taxa_order( status, spikearray, spikeorder, org )
+                taxaannot.append( taxastring )
+
+            #Get unirefs for contig
+            uniref50, uniref90 = find_uniref( status, spikearray, spikeorder, taxa, taxalist ) 
+            result_line = print_result( contig, contiglen, status, onebugscore, twobugscore, taxa, taxaannot, uniref50, uniref90 )
             writer.writerow( result_line )
             
             
