@@ -32,12 +32,14 @@ def get_args():
         help="output from waafle aggregator"
         )
     parser.add_argument(
-        "-genes", "--genes",
-        help="output for genes from Prodigal or WAAFLE in gff format",
+        "-reforgs", "--reforgs",
+        default=False,
+        help="output for reference orgs from NCBI for synthetic contigs only, if available"
         )
     parser.add_argument(
-        "-reforgs", "--ref_orgs",
-        help="output for reference orgs from NCBI for synthetic contigs only, if available"
+        "-refgenes", "--refgenes",
+        default=False,
+        help="output for reference genes from NCBI for synthetic contigs only, if available"
         )
     parser.add_argument(
         "-contigs", "--contiglist",
@@ -46,6 +48,11 @@ def get_args():
     parser.add_argument(
         "-taxa", "--taxalevel",
         help="taxa level"
+        )
+    parser.add_argument(
+        "-o", "--type",
+        help="Format of output (pdf, png)",
+        default="pdf"
         )
     args = parser.parse_args()
     return args
@@ -59,7 +66,22 @@ taxalevels = {'k':0, 'p':1, 'c':2, 'o':3, 'f':4, 'g':5, 's':6, 't':7}
 # functions
 #----------------------------------------------------------------
 
+def arrange_taxagenes( taxalist ):
+    dict_waaflegenes = {}
+    for taxa in taxalist:
+        if taxa.strand == '+':
+            dict_waaflegenes[taxa.gene] = [taxa.genestart, taxa.geneend, taxa.uniref50, taxa.uniref90]
+        else:
+            dict_waaflegenes[taxa.gene] = [taxa.geneend, taxa.genestart, taxa.uniref50, taxa.uniref90]
+    return dict_waaflegenes
 
+def arrange_gffgenes( gfflist ):
+    dict_genes = {}
+    counter = 1
+    for gene in gfflist:
+        dict_genes[counter] = [gene.start, gene.end ]
+        counter += 1
+    return dict_genes
 
 # ---------------------------------------------------------------
 # main
@@ -73,23 +95,19 @@ def main():
     for contig, taxalist in wu.iter_contig_taxa( args.orgscorer ):
         dict_mytaxa[contig] = taxalist
 
-    # Parse gff (either Prodigal or WAAFLE)
-    if args.genes:
-        dict_genes = {}
-        for contig, gfflist in wu.iter_contig_genes( args.genes ):
-            dict_genes[contig] = gfflist
-
-    """
     # Parse answer data IF provided
-    if args.ref_orgs:
-        dict_reforgs = {}
-        for astrline in open( args.ref_orgs ): 
+    dict_reforgs = {}
+    if args.reforgs:
+        for astrline in open( args.reforgs ): 
             aastrline = astrline.strip().split('\t')
             index = taxalevels[args.taxalevel]
             donor = aastrline[3].split('|')[index]
             recip = aastrline[2].split('|')[index]
             dict_reforgs[ aastrline[1] ] = [recip, donor]
-    """
+    dict_refgenes = {}
+    if args.refgenes:
+        for contig, gfflist in wu.iter_contig_genes( args.refgenes ): 
+            dict_refgenes[contig] = gfflist
 
     # Parse final results into dict
     dict_results = {}
@@ -106,14 +124,8 @@ def main():
         contig = astrline.strip()
         taxalist = dict_mytaxa[contig]
         results = dict_results[contig]
-        
-        # Arrange waafle genes in data structure
-        dict_waaflegenes = {}
-        for taxa in taxalist:
-            if taxa.strand == '+':
-                dict_waaflegenes[taxa.gene] = [taxa.genestart, taxa.geneend, taxa.uniref50, taxa.uniref90]
-            else:
-                dict_waaflegenes[taxa.gene] = [taxa.geneend, taxa.genestart, taxa.uniref50, taxa.uniref90]
+
+        dict_waaflegenes = arrange_taxagenes( taxalist )
 
         # Make colors for taxa and arrange taxa in data structure
         orgset = set([])
@@ -133,7 +145,7 @@ def main():
             if abbrtaxa in dict_waafletaxa.keys():
                 scorelist, startlist, endlist = [], [], []
                 oldscores, oldstarts, oldends = dict_waafletaxa[ abbrtaxa ]
-                if taxa.strand == '+':
+                if info.strand == '+':
                     startlist = info.taxastart.split(',')
                     endlist = info.taxaend.split(',')
                 else:
@@ -143,7 +155,7 @@ def main():
                 dict_waafletaxa[ abbrtaxa ] = [ oldscores + scorelist, oldstarts + startlist, oldends + endlist ]
             else:
                 scorelist, startlist, endlist = [], [], []
-                if taxa.strand == '+':
+                if info.strand == '+':
                     startlist = info.taxastart.split(',')
                     endlist = info.taxaend.split(',')
                 else:
@@ -151,45 +163,57 @@ def main():
                     endlist = info.taxastart.split(',')
                 scorelist = [info.score]*len(startlist)
                 dict_waafletaxa[abbrtaxa] = [scorelist, startlist, endlist]
-        
+        print( dict_waafletaxa )
+ 
         # Initiate the plots      
         taxarows = len( dict_waafletaxa.keys() )
         generows = len( dict_waaflegenes.keys() )
-        rows = (taxarows + generows)*5/2 + 4 #make taxa and gene rows 2/5 of the plot, plus 4 for spaces in between plots
-        plotrows = rows - taxarows - generows - 4
-        fig = plt.figure(figsize=(rows, rows), dpi=300)
+        ansrows = 0
+        if not args.reforgs:
+            rows = (taxarows + generows)*5/2 + 4 #make taxa and gene rows 2/5 of the plot, plus 4 for spaces in between plots
+            plotrows = rows - taxarows - generows - 4
+        else:
+            rows = (taxarows + generows)*6/2 + 5 #make taxa and gene rows 2/6 of plot, plus 6 for spaces in between plots 
+            remainrows = rows - taxarows - generows - 5
+            plotrows = remainrows*3/4
+            ansrows = remainrows*1/4
+        fig = plt.figure(figsize=(12, 12), dpi=300)
         
         # Plot for orgscorer hits
-        h_waafle = plt.subplot2grid( (rows,1), (0,0), rowspan=plotrows*2/3, colspan=1 )
+        h_waafle = plt.subplot2grid( (rows,1), (0,0), rowspan=plotrows*2/3, colspan=1 ) #first 2/3rds of the plot
         h_waafle.set_ylim( -0.1, 1.1 )
         h_waafle.set_xlim( 0, contiglen )
         h_waafle.set_ylabel( 'scores' )
-        h_waafle.get_xaxis().set_ticks( np.arange(0, contiglen, contiglen/10) )
+        #h_waafle.get_xaxis().set_ticks( np.arange(0, contiglen, contiglen/10) )
 
         # Plot for genes
         h_genes = plt.subplot2grid( (rows,1), (1+plotrows*2/3,0), rowspan=plotrows*1/3, colspan=1 )
         h_genes.set_ylim( 0, 1 )
         h_genes.set_xlim( 0, contiglen )
-        h_genes.get_xaxis().set_ticks(np.arange( 0, contiglen, contiglen/10) )
+        #h_genes.get_xaxis().set_ticks(np.arange( 0, contiglen, contiglen/10) )
         h_genes.get_yaxis().set_ticks([0, 0.5, 1])
         h_genes.set_ylabel( 'genes' )
 
+        if args.reforgs:
+            next_coord = 3+plotrows + ansrows 
+        else:
+            next_coord = 2+plotrows
+
         # Plot for taxa legend
-        h_taxaleg = plt.subplot2grid( (rows,1), (2+plotrows,0),rowspan=taxarows, colspan=1 ) #for taxa annotations
+        h_taxaleg = plt.subplot2grid( (rows,1), (next_coord,0),rowspan=taxarows, colspan=1 ) #for taxa annotations
+        h_taxaleg.set_xlim( 0, contiglen )
+        h_taxaleg.set_ylim( 0, len(dict_taxacolor.keys()) )
 
         # Plot for Uniref annotations
-        h_geneleg = plt.subplot2grid( (rows,1), (3+plotrows + taxarows, 0), rowspan=generows, colspan=1 ) #for Uniref annotations
+        h_geneleg = plt.subplot2grid( (rows,1), (1 + next_coord + taxarows, 0), rowspan=generows, colspan=1 ) #for Uniref annotations
         h_geneleg.set_xlim( 0, contiglen )
-        h_geneleg.set_ylim( 0, len( dict_waaflegenes.keys() )*2 )
+        h_geneleg.set_ylim( 0, len(dict_waaflegenes.keys()) )
 
         # Plot taxa and taxa legend
-        h_taxaleg.set_xlim( 0, contiglen )
-        h_taxaleg.set_ylim( 0, len(dict_taxacolor.keys())*2 )
         xlab = 0
-        ylab = len(dict_taxacolor)*2
-        ylab -= 1
+        ylab = len(dict_taxacolor)
+        ylab -= 2
         for taxa in dict_waafletaxa.keys():
-            
             #Plot all taxa
             scores, starts, ends = dict_waafletaxa[taxa]
             diffs = list( np.array( [int(x) for x in ends] ) - np.array( [int(y) for y in starts] ) )
@@ -201,12 +225,17 @@ def main():
                     newvalue = value + arrowhead
                 else:
                     newvalue = value - arrowhead
-                h_waafle.arrow( float( starts[i] ), float( scores[i] ), newvalue, 0, width=0.02, color=dict_taxacolor[taxa], head_width=0.02, head_length=arrowhead, alpha=0.4 )
-            
+                if taxa in coloredorgs:
+                    h_waafle.arrow( float( starts[i] ), float( scores[i] ), newvalue, 0, width=0.02, color=dict_taxacolor[taxa], head_width=0.02, head_length=arrowhead, alpha=0.8, zorder=2 )
+                else:
+                    h_waafle.arrow( float( starts[i] ), float( scores[i] ), newvalue, 0, width=0.02, color=dict_taxacolor[taxa], head_width=0.02, head_length=arrowhead, alpha=0.2 )
             #Plot taxa legend
-            p = patches.Rectangle( (xlab, ylab), contiglen/20, 1, color=dict_taxacolor[taxa], alpha=0.4)
+            if taxa in coloredorgs:
+                p = patches.Rectangle( (xlab, ylab), contiglen/20, 1, color=dict_taxacolor[taxa], alpha=0.8)
+            else:
+                p = patches.Rectangle( (xlab, ylab), contiglen/20, 1, color=dict_taxacolor[taxa], alpha=0.2)
             h_taxaleg.add_patch(p)
-            h_taxaleg.text( xlab + contiglen/20, ylab + 0.5, str(taxa), fontsize=12 ) #contiglen/200 )
+            h_taxaleg.text( xlab + contiglen/20, ylab + 0.5, str(taxa), fontsize=5 ) #contiglen/200 )
             xlab += contiglen/4
             if xlab >= contiglen:
                 xlab = 0
@@ -223,62 +252,58 @@ def main():
             else:
                 score -= 0.1
             diff = float( end ) - float( start )
+            arrowhead = abs( 0.05*diff )
             if float(diff) < 0:
-                arrowhead = abs( 0.05*diff )
                 newdiff = diff + arrowhead
             else:
                 newdiff = diff - arrowhead
             h_genes.arrow( dict_waaflegenes[gene][0], score, newdiff, 0, width=0.04, color="blue", head_width=0.04, head_length=arrowhead, alpha=0.9 )
-            ylab -= 1
-            h_geneleg.text(0, ylab, 'Gene' + str(gene) + ' Uniref50:' + uniref50, fontsize=8 )
-            ylab -= 0.5
-            h_geneleg.text(0, ylab, 'Gene' + str(gene) + ' Uniref90:' + uniref90, fontsize=8 )
+            #Plot unirefs
+            h_geneleg.text(0, ylab, 'Gene' + str(gene) + ' Uniref50:' + uniref50, fontsize=5 )
+            h_geneleg.text(contiglen/4, ylab, 'Gene' + str(gene) + ' Uniref90:' + uniref90, fontsize=5 )
+            ylab -= 2
         h_geneleg.set_axis_off()
-        """ 
-        # Plot reference genes (Prodigal or AnswerKey) and taxa (if AnswerKey) 
-        DR = False
-        if args.ref_orgs:
-            DR = True
-    
-        if args.ref_genes:
-            # Initiate the plot
-            h_refgenes = plt.subplot2grid( (rows,2), (3,0), rowspan=1, colspan=2 )
-            gfflist = dict_refgenes[contig]
-	    score = 1
-            for gene in gfflist:
-                ID = gene.attribute.split(';')[0]
-                if re.search( 'donor', ID ) and DR == True:
-			colors = 'red'
-		elif not re.search('donor', ID ) and DR == True:
-                        colors = 'blue'
+         
+        # Plot answers: In this case answers are genes! 
+        if args.reforgs and args.refgenes:
+            h_ref = plt.subplot2grid( (rows,1), ( 2 + plotrows,0), rowspan=ansrows, colspan=1 ) #initiate plot
+            h_ref.set_ylim( 0, 1.1 )
+            h_ref.set_xlim( 0, contiglen )
+            h_ref.get_yaxis().set_ticks([0, 0.5, 1])
+            h_ref.set_xlabel( 'coordinates (bp)' )
+            h_ref.set_ylabel( 'answers' )
+
+            recipient, donor = dict_reforgs[contig]
+            genelist = dict_refgenes[contig]
+            score = 1
+            for gene in genelist:
+                genelen = 0
+                if gene.strand == '+':
+                    genelen = gene.end - gene.start + 1
+                    start = gene.start
                 else:
-                        colors = 'black'
-                
+                    genelen = (gene.end - gene.start + 1)*(-1)
+                    start = gene.end
+                arrowhead = abs(genelen*0.05)
+                if genelen < 0:
+                    newdiff = genelen + arrowhead
+                else:
+                    newdiff = genelen - arrowhead
+                ID = gene.attribute.split(';')[0]
+                if re.search( 'donor', ID ):
+                    mycolor = 'red'
+                    h_ref.text( (gene.start+gene.end)/2, score, 'donor:' + donor )
+                else:
+                    mycolor = 'blue'
+                    h_ref.text( (gene.start+gene.end)/2, score, 'recip:' + recipient )
+                h_ref.arrow( start, score, newdiff, 0, width=0.04, color=mycolor, head_width=0.04, head_length=arrowhead, alpha=0.4)
                 # Set y-axis
                 if score <= 0:
                     score = 1
                 else:
                     score -= 0.1		
-                if gene.strand == '+':
-                    h_refgenes.arrow( gene.start, score, gene.end-gene.start, 0, width=0.04, color=colors, head_width=0.04, head_length=headlen, alpha=0.4 )
-                    if re.search('donor', ID ) and DR == True:
-                        h_refgenes.text( (gene.start+gene.end)/2, score, 'donor:' + dict_reforgs[contig][1] )
-                    elif not re.search('donor', ID ) and DR == True:
-                        h_refgenes.text( (gene.start+gene.end)/2, score, 'recip:' + dict_reforgs[contig][0] )
-                else:
-                    h_refgenes.arrow( gene.end, score, gene.start-gene.end, 0, width=0.04, color=colors, head_width=0.04, head_length=headlen, alpha=0.4)
-                    if re.search('donor', ID ) and DR == True:
-                        h_refgenes.text( (gene.start+gene.end)/2, score, 'donor:' + dict_reforgs[contig][1] )
-                    elif not re.search('donor', ID ) and DR == True:
-                        h_refgenes.text( (gene.start+gene.end)/2, score, 'recip:' + dict_reforgs[contig][0] )
             
-            h_refgenes.set_ylim( 0, 1 )
-            h_refgenes.set_xlim( 0, contiglen )
-            h_refgenes.get_yaxis().set_ticks([0, 0.5, 1])
-            h_refgenes.set_xlabel( 'coordinates (bp)' )
-            h_refgenes.set_ylabel( 'answers' )
-        """
-        filename = contig + '.pdf'
+        filename = contig + "." + args.type
         plt.savefig( filename )
         plt.close(fig)
         

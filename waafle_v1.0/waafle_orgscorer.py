@@ -123,7 +123,11 @@ def score_taxa( gene, info, contiglen ):
     taxalist = []
     if len( genehits ) == 0:
         #set unknown taxa or output
-        taxa = c__list_taxa[taxalevel-1] + '__Unknown'
+        taxaname = []
+        for i in range( taxalevel ):
+            taxa = c__list_taxa[i] + '__Unknown'
+            taxaname.append( taxa )
+        taxa = '|'.join( taxaname )
         start_list, end_list, score = gene.start, gene.end, 1 
         taxa = wu.Taxa( [gene.seqname, contiglen, gene.genenum, gene.strand, gene.start, gene.end, taxa, start_list, end_list, score, 'No_Uniref50', 'No_Uniref90', 0] )
         taxalist.append( taxa )

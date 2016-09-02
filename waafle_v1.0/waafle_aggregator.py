@@ -366,6 +366,7 @@ def main( ):
             lastknown = c__list_taxa[ lastknown_index ]
             unambigtaxa, unambigsynteny = make_call( sortedlist, lastknown, True )
             unambiginfo = sortedlist[lastknown_index]
+            status = unambiginfo.status
             if status == 'LGT' or status == 'ambiguous-LGT':
                 call = status + ':' + lastknown
             else:

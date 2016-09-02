@@ -1,71 +1,120 @@
 from __future__ import print_function
 import collections
 import re
-import sys
+import os
+import errno
 from doit.tools import config_changed
+from doit import get_var
+
+#-------------------------------------
+#Comments
+#-------------------------------------
+"""
+08/19/16
+This will be used to run all the real samples.
+"""
 
 #-------------------------------------
 #Set variables
 #-------------------------------------
 
-waafle_loc = '/n/home05/thsu/bitbucket/waafle/waafle_v1.0/'
-CONTIGS = '/n/home05/thsu/bitbucket/waafle/waafle_validation/1000contigs_1/concatenated_fasta.ffn'
-LAP_H = str(0.5)
-LAP_G = str(0.5)
-LENGTH = str(0)
-SCOV_H = str(0)
-SCOV_G = str(0)
-TAXA = ['k', 'p', 'c', 'o', 'f', 'g', 's']
-ONEBUG = str(0.8)
+waafleloc = '/n/home05/thsu/bitbucket/waafle/waafle_v1.0/'
+workingdir = os.getcwd() + '/'
+#blastdir = '/n/hutlab11_nobackup/data/waafle/blastn_output_completed'
+resultdir = '/n/regal/huttenhower_lab/thsu/waafle/results/throat/'
+taxalist = ['k', 'p', 'c', 'o', 'f', 'g', 's']
+
+SCOVH = str(0.75) 
+LAP = str(0.1)
+GENELEN = str(200) 
+ONEBUG = str(0.5)
 TWOBUG = str(0.8)
+
+blastfile = get_var( 'blastfile' )
+name = re.search( 'SRS[0-9]+', blastfile ).group()
+
+
+#-------------------------------------
+#Functions
+#-------------------------------------
+
+def make_sure_path_exists(path):
+    try:
+        os.makedirs(path)
+    except OSError as exception:
+        if exception.errno != errno.EEXIST:
+            raise
 
 #-------------------------------------
 #Tasks
 #-------------------------------------
 
-def task_blast_contigs( ):
-    # BLAST the contigs against Repophlan
-	repophlan = '/n/huttenhower_lab_nobackup/data/hgt/blast/blast_db/repophlan_31122013_speciescentroids_uniprot.db'
-	script = 'waafle_search.py'
-	scriptloc = waafle_loc + script
-	blastpath = '/usr/local/bin/blastn'
-	return {
-        'actions': [ 'python ' + scriptloc + ' -q ' + CONTIGS + ' -d ' + repophlan + ' -b ' + blastpath + ' -e 1 ' + '-o ' + '%(targets)s' ],
-        'targets': ['waafle-blastout.tsv'],
-        }
-
 def task_call_genes( ):
-	# Take BLAST hits and call genes
-	script = "waafle_genecaller.py"
-	scriptloc = waafle_loc + script
-	return {
-		'actions': ['python ' + scriptloc + ' -i ' + 'waafle-blastout.tsv' + ' -o ' + '%(targets)s ' + ' -lap_h ' + LAP_H + ' -lap_g ' + LAP_G + ' -l ' + LENGTH + ' -scov_h ' + SCOV_H + ' -scov_g ' + SCOV_G ],
-		'targets': ['waafle-genes.gff'],
-		'file_dep': ['waafle-blastout.tsv']
-		}
+    # Take BLAST hits and call genes
+    script = "waafle_genecaller.py"
+    scriptloc = waafleloc + script
+    blastloc = blastfile
+    resultloc = resultdir + name
+    make_sure_path_exists( resultloc )
+    yield {
+        'name': name,
+        'actions': ['python ' + scriptloc + ' -i ' + blastloc + ' -o ' + '%(targets)s' + ' -lap ' + LAP + ' -l ' + GENELEN + ' -scov ' + SCOVH ],
+        'file_dep': [blastloc],
+        'targets': [resultloc + '/waafle-genes.gff']
+		}   
 
 def task_score_orgs( ):
-	# Take gff and call orgs	
-	script = "waafle_orgscorer.py"
-	scriptloc = waafle_loc + script
-	for taxa in TAXA:
-		yield {
-			'name': 'scoreorg_iteration_%s' %taxa,
-			'actions': ['python ' + scriptloc + ' -g ' + 'waafle-genes.gff' + ' -b ' + 'waafle-blastout.tsv' + ' -t ' + taxa + ' -o ' + '%(targets)s' + ' -cov ' + SCOV_H + ' -lap ' + LAP],
-			'targets': ['waafle-scoredorgs_%s.tsv' %taxa],
-			'file_dep': ['waafle-genes.gff', 'waafle-blastout.tsv']
-			}
+    # Take gff and call orgs
+    script = "waafle_orgscorer.py"
+    scriptloc = waafleloc + script
+    blastloc = blastfile
+    resultloc = resultdir + name
+    for taxa in taxalist:
+        yield {
+            'name': name + '_' + taxa,
+            'actions': ['python ' + scriptloc + ' -g ' + resultloc + '/waafle-genes.gff' + ' -b ' + blastloc + ' -t ' + taxa + ' -o ' + '%(targets)s' + ' -lap ' + LAP + ' -scov ' + '0' ],
+            'targets': [resultloc + '/waafle-scoredorgs_%s' %taxa + '.tsv'],
+            'file_dep': [resultloc + '/waafle-genes.gff', blastloc],
+            }
 
 def task_find_lgt( ):
 	# Call which contigs have LGT
-	script = "waafle_lgtscorer.py"
-	scriptloc = waafle_loc + script
-	unknown = str(False)
-	for taxa in TAXA:
-		input_file = 'waafle-scoredorgs_%s.tsv' %taxa
-		yield {
-			'name': 'lgt_iteration_%s' %taxa,
-			'actions': ['python ' + scriptloc + ' -i ' + input_file  + ' -o ' + '%(targets)s' + ' -s1 ' + ONEBUG + ' -s2 ' + TWOBUG + ' -u ' + unknown ],
-			'targets': ['waafle-scoredcontigs_%s.tsv' %taxa],
-			'file_dep': ['waafle-scoredorgs_%s.tsv' %taxa],
-			}
+    script = "waafle_lgtscorer.py"
+    scriptloc = waafleloc + script
+    resultloc = resultdir + name
+    for taxa in taxalist:
+        orgfile = resultloc + '/waafle-scoredorgs_%s' %taxa + '.tsv'
+        yield {
+            'name': name + '_' + taxa,
+            'actions': ['python ' + scriptloc + ' -i ' + orgfile + ' -o ' + '%(targets)s' + ' -s1 ' + ONEBUG + ' -s2 ' + TWOBUG],
+            'targets': [resultloc + '/waafle-scoredcontigs_%s' %taxa + '.tsv'],
+            'file_dep': [resultloc + '/waafle-scoredorgs_%s' %taxa + '.tsv']
+            }
+
+def task_concatenate( ):
+    # Concatenate all results
+    filelist = []
+    resultloc = resultdir + name
+    for taxa in taxalist:
+        files = resultloc + '/waafle-scoredcontigs_%s' %taxa + '.tsv'
+        filelist.append( files )
+    concatfile = resultloc + '/concatfile.txt'
+    yield {
+        'name': name,
+        'actions': ['cat ' + ' '.join( filelist ) + ' > ' + concatfile],
+        'targets': [concatfile],
+        'file_dep': filelist
+        }
+
+def task_aggregate( ):
+    # Aggregate contigs
+    script = "waafle_aggregator.py"
+    scriptloc = waafleloc + script
+    resultloc = resultdir + name
+    concatfile = resultloc + '/concatfile.txt'
+    yield {
+        'name': name,
+        'actions': ['python ' + scriptloc + ' -i ' + concatfile + ' >%(targets)s '],
+        'targets': [resultloc + '/' + name + '-scoredcontigs.tsv'],
+        'file_dep': [concatfile]
+        }

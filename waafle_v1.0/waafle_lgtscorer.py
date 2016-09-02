@@ -159,7 +159,7 @@ def find_taxa_order( status, contigarray, taxaorder, org ):
     """
     element_list, taxastring, shift_counter = [], '', 0
     if status == 'LGT' or status == 'ambiguous-LGT':
-        top_one, top_two = re.split('[><?-]', org )
+        top_one, top_two = re.split('[><\?-]', org )
         index_one, index_two = taxaorder.index( top_one ), taxaorder.index( top_two )
         array_one, array_two = contigarray[index_one, :], contigarray[index_two, :]
         twobugmax = np.amax( np.array( [array_one, array_two] ), axis=0 )
@@ -185,7 +185,7 @@ def find_taxa_order( status, contigarray, taxaorder, org ):
     return element_list, taxastring, shift_counter
 
 
-def calc_twobug( array, bugindex ):
+def calc_twobug( array, bugindex, onebugscore ):
     """
     Calculates the complement score. Equals the minimum of the maximum of scores across all genes per pair of bugs.
     High scores indicate that contig is likely explained by two taxa.
@@ -193,32 +193,38 @@ def calc_twobug( array, bugindex ):
     complementlist = []
     for i in range( array.shape[0]-1 ):
         bug1 = array[i, :]
+        if max( bug1 ) < onebugscore:
+            continue
         for j in range( i+1, array.shape[0] ):
             bug2 = array[j, :]
+            if max( bug2 ) < onebugscore:
+                continue
             twobugarray = np.array( [bug1, bug2] )
             complement = np.min(np.amax(twobugarray, axis=0))
             average = np.mean(np.amax(twobugarray, axis=0))
             bugsort = sorted( [str(bugindex[i]), str(bugindex[j])] )
             bugnames = bugsort[0] + '-' + bugsort[1]
             complementlist.append( [ bugnames, complement, average ] )
-    complement_sorted = sorted( complementlist, key=itemgetter(1,2), reverse=True )
-
-    twobugscore, twobugavg = complement_sorted[0][1], complement_sorted[0][2]
-    twobuglist = []
-    for info in complement_sorted:
-        element_list, taxastring, shift = find_taxa_order( 'LGT', array, bugindex, info[0] )
-        lgt_status = False
-        reduced_taxastring = taxastring.replace( 'C', '')
-        if len( set( reduced_taxastring ) ) == 2:
-            lgt_status = True
-        if info[1] == twobugscore and info[2] >= twobugavg and lgt_status == True:
-            twobuglist.append( info[0] )
-        elif info[1] == twobugscore and info[2] >= twobugavg and lgt_status == False:
-            twobugscore = 0
-            twobuglist = ['None-None']
-            break
-        elif info[1] < twobugscore or (info[1] == twobugscore and info[2] < twobugavg):
-            break
+    if len( complementlist ) == 0:
+        twobugscore, twobuglist = 0, ['None-None']
+    else:
+        complement_sorted = sorted( complementlist, key=itemgetter(1,2), reverse=True )
+        twobugscore, twobugavg = complement_sorted[0][1], complement_sorted[0][2]
+        twobuglist = []
+        for info in complement_sorted:
+            element_list, taxastring, shift = find_taxa_order( 'LGT', array, bugindex, info[0] )
+            lgt_status = False
+            reduced_taxastring = taxastring.replace( 'C', '')
+            if len( set( reduced_taxastring ) ) == 2:
+                lgt_status = True
+            if info[1] == twobugscore and info[2] >= twobugavg and lgt_status == True:
+                twobuglist.append( info[0] )
+            elif info[1] == twobugscore and info[2] >= twobugavg and lgt_status == False:
+                twobugscore = 0
+                twobuglist = ['None-None']
+                break
+            elif info[1] < twobugscore or (info[1] == twobugscore and info[2] < twobugavg):
+                break
     return twobugscore, twobuglist
 
 
@@ -321,7 +327,7 @@ def main():
             if numgenes == 1 or numbugs == 1:
                 twobugscore, twobuglist = 0, ["NA"]
             else:
-                twobugscore, twobuglist = calc_twobug( spikearray, spikeorder )
+                twobugscore, twobuglist = calc_twobug( spikearray, spikeorder, onebugscore )
                     
             #Apply thresholds for one/twobug scores
             if onebugscore >= args.onebug: 
