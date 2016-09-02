@@ -22,6 +22,11 @@ from collections import Counter
 # constants
 # ---------------------------------------------------------------
 
+"""
+@codereview 9/2/2016
+One or the other and put it in utils since it shows up across scripts
+"""
+
 c__dict_taxa = {
     "k": 1,
     "p": 2,
@@ -60,13 +65,13 @@ def get_args():
         help="output for scored taxa",
         )
     parser.add_argument(
-        "-lap", "--overlap_hits",
+        "-lap", "--overlap-hits",
         help="amount of overlap to include hit in a gene",
         default=0.5,
         type=float,
         )
     parser.add_argument(
-        "-scov", "--scov_hits",
+        "-scov", "--scov-hits",
         help="cutoff for gene coverage or subject coverage when grouping hits",
         default=0,
         type=float,
@@ -110,6 +115,18 @@ def hits2genes( gene, hits, strand_specific, lap, scov, taxalevel ):
     uniref90_c = ','.join( [ str(x) + ':' + str(y) for x, y in Counter( uniref90 ).most_common( 3 )] )
     info = [genehits, taxaset, uniref50_c, uniref90_c, taxalevel ]
     return info
+
+"""
+@codereview 9/2/2016
+Add some carriage returns to the wu.Taxa lists so they're easier to read, like
+
+wu.Taxa( [
+	first,
+	second
+	third,
+	...,
+	] )
+"""
 
 def score_taxa( gene, info, contiglen ):
     """
@@ -156,6 +173,12 @@ def score_taxa( gene, info, contiglen ):
 # ---------------------------------------------------------------
 # main
 # ---------------------------------------------------------------
+
+"""
+@codereview 9/2/2016
+Can get the header items from the definition of taxon in the utils file:
+[name for name, type in wu.c_taxafields]
+"""
 
 def main():
     """

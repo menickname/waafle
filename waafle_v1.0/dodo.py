@@ -9,6 +9,12 @@ from doit import get_var
 #-------------------------------------
 #Comments
 #-------------------------------------
+
+"""
+@codereview 9/2/2016
+We need a solution to provide and inject custom gff for contigs
+"""
+
 """
 08/19/16
 This will be used to run all the real samples.
@@ -17,6 +23,13 @@ This will be used to run all the real samples.
 #-------------------------------------
 #Set variables
 #-------------------------------------
+
+"""
+@codereview 9/2/2016
+* Paths to results and database should also be params
+* The taxalist here comes up in many files - can put that in waafle_utils
+* We might just want to wrap this with a driver script a la humann2
+"""
 
 waafleloc = '/n/home05/thsu/bitbucket/waafle/waafle_v1.0/'
 workingdir = os.getcwd() + '/'
@@ -33,10 +46,14 @@ TWOBUG = str(0.8)
 blastfile = get_var( 'blastfile' )
 name = re.search( 'SRS[0-9]+', blastfile ).group()
 
-
 #-------------------------------------
 #Functions
 #-------------------------------------
+
+"""
+@codereview 9/2/2016
+Stuff like this can go in utils as well
+"""
 
 def make_sure_path_exists(path):
     try:
@@ -48,6 +65,22 @@ def make_sure_path_exists(path):
 #-------------------------------------
 #Tasks
 #-------------------------------------
+
+"""
+@codereview 9/2/2016
+For long formatting you can do things like...
+
+"-i {INPUT} -o {OUTPUT}".format(
+	INPUT=x,
+	OUTPUT=y,
+)
+
+###
+
+Watch out for wide lines of code
+80 characters is a good target to aim for
+
+"""
 
 def task_call_genes( ):
     # Take BLAST hits and call genes

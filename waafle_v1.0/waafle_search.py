@@ -60,6 +60,11 @@ def get_args():
 # main
 # ---------------------------------------------------------------
 
+"""
+@codereview 9/2/2016
+#s work in format, but can also use keywords instead
+"""
+
 def main():
     args = get_args()
     command = "{0} -query {1} -db {2} -out {3} -max_target_seqs {4} -num_threads {5} -outfmt \'{6}\'".format( 

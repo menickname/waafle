@@ -37,6 +37,18 @@ from collections import Counter
 # functions
 # ---------------------------------------------------------------
 
+"""
+@codereview 9/2/2016
+
+
+parser.add_argument( 
+	--strand-aware,
+	action="store_true",
+)
+program --strand-aware
+   args.stand_aware will be True
+"""
+
 def get_args():
     """
     Get arguments passed to script
@@ -55,7 +67,7 @@ def get_args():
         help="waafle gene calls",
         )
     parser.add_argument(
-        "-lap", "--overlap_hits",
+        "-lap", "--overlap-hits",
         default=0.5,
         type=float,
         help="overlap at which to merge hits into groups",
@@ -173,6 +185,11 @@ def main():
     for contig, hitlist in wu.iter_contig_hits( args.input ):
         intervals = hits2ints( hitlist, args.scov_hits )
         newintervals = overlap_intervals( intervals, threshold=args.overlap_hits, strand_specific=args.strand)
+
+	"""
+	@codereview 9/2/2016
+	Can change return value of overlap_intervals so you don't have do deal with double index in gene
+	"""
                 
         counter = 1
         for gene in newintervals:
@@ -182,12 +199,17 @@ def main():
             if genelen > args.length:
                 score = len( gene[1] )
                 name = 'ID=' + contig + '_' + str(counter)
-                gff = wu.print_gff( wu.GFF( [contig, 'WAAFLE', 'CDS', start, end, score, strand, '0', name] ) ) 
+                
+		"""
+		@codereview 9/2/2016
+		What is happening here?
+		"""	
+
+		gff = wu.print_gff( wu.GFF( [contig, 'WAAFLE', 'CDS', start, end, score, strand, '0', name] ) ) 
                 writer.writerow( [str(x) for x in gff] )
                 counter += 1
 
     fh.close()
-
 
 if __name__ == "__main__":
     main()

@@ -16,6 +16,21 @@ from operator import itemgetter, attrgetter, methodcaller
 import numpy as np
 from collections import Counter
 
+"""
+@codereview 9/2/2016
+
+General comments: 
+
+* Delete stuff here that we aren't using
+
+* If a function or object is ONLY used in one script, it's better
+to have it there
+
+* The key reason for util is sharing object / functions across scripts
+or forcing consistency as in the blast output
+
+"""
+
 # ---------------------------------------------------------------
 # constants
 # ---------------------------------------------------------------
@@ -148,6 +163,14 @@ class Hit( ):
         self.uniref90 = chocoitems[7].split('_')[1]
         self.uniref50 = chocoitems[8].split('_')[1]
 
+"""
+@codereview 9/2/2016
+
+Split up the GFF attribute field into a dict of attributes
+Interact with the dict via get, e.g. 
+
+gff.attributes.get( "UniRef50", None )
+"""
 
 class GFF( ):
     """
@@ -188,6 +211,18 @@ class GFF( ):
                 if label == 'Uniref90':
                     self.uniref90 = descriptor
         self.attr = dict_attr
+
+"""
+@codereview 9/2/2016
+
+def __repr__( self ):
+	...
+	return STRING
+
+This is what will be called if you print an object
+
+print( GFF )
+"""
 
 class Taxa( ):
     """
@@ -331,6 +366,12 @@ def iter_contig_taxa( orgfile ):
                 taxa.append( taxon )
         #last case cleanup
         yield contig, taxa
+
+"""
+@codereview 9/2/2016
+See if some of the overlap code can use the INode and genes functions
+just to avoid duplication of code
+"""
 		
 def calc_overlap( onestart, oneend, twostart, twoend ):
     """
@@ -371,6 +412,12 @@ def find_ends( indexscore_sort, status ):
         return str(min(startlist)), str(max(endlist))
     else:
         return ','.join( [str(x) for x in startlist] ), ','.join( [str(y) for y in endlist] )
+
+"""
+@codereview 9/2/2016
+I think we discussed replacing this with pure numpy operations for speed?
+Looks like loops over coords are still in effect
+"""
 
 def score_hits( hitlist, genestart, geneend, status ):
     """

@@ -23,11 +23,29 @@ import numpy.ma as ma
 # constants
 # ---------------------------------------------------------------
 
+"""
+@codereview 9/2/2016
+Outsource this to the utils file
+"""
+
 c__list_taxa = ["k", "p", "c", "o", "f", "g", "s"]
 
 # ---------------------------------------------------------------
 # functions
 # ---------------------------------------------------------------
+
+"""
+@codereview 9/2/2016
+"-s1", "--onebug",
+"-s2", "--twobug",
+Usually the flag with a single dash is just one character
+"""
+
+"""
+@codereview 9/2/2016
+Use the action="store_true" option for --unknown
+"""
+
 def get_args():
     """
     Get arguments passed to script
