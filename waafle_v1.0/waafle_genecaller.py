@@ -37,18 +37,6 @@ from collections import Counter
 # functions
 # ---------------------------------------------------------------
 
-"""
-@codereview 9/2/2016
-
-
-parser.add_argument( 
-	--strand-aware,
-	action="store_true",
-)
-program --strand-aware
-   args.stand_aware will be True
-"""
-
 def get_args():
     """
     Get arguments passed to script
@@ -86,17 +74,14 @@ def get_args():
         )
     parser.add_argument(
         "-s", "--strand",
-        default=False,
-        type=bool,
-        help="strand specific gene calling (default False)",
+        action="store_true",
+        help="turn on strand specific gene calling",
         )
     args = parser.parse_args()
     return args
 
 def hits2ints( hitlist, scov ):
-    """
-    For a list of hits, filter by scoverage.
-    """
+    """ For a list of hits, filter by scoverage """
     intervals = []
     for hit in hitlist:
         strand = wu.convert_strand( hit.sstrand )
@@ -108,12 +93,8 @@ def overlap_inodes( inode1, inode2 ):
     """ compute overlap between two intervals """
     a1, b1 = inode1.start, inode1.stop
     a2, b2 = inode2.start, inode2.stop
-    if b1 < a2 or b2 < a1:
-        return 0
-    else:
-        outleft, inleft, inright, outright = sorted( [a1, b1, a2, b2] )
-        denom = min( len( inode1 ), len( inode2 ) )
-        return ( inright - inleft + 1 ) / float( denom )
+    overlap = wu.calc_overlap( a1, b1, a2, b2 )
+    return overlap
     
 def merge_inodes( *inodes ):
     """ merge overlapping intervals into a single node """
@@ -138,7 +119,7 @@ def make_inodes( intervals ):
         inodes.append( wu.INode( start, stop, strand ) )
     return inodes
         
-def overlap_intervals( intervals, threshold=1.0, strand_specific=True ):
+def overlap_intervals( intervals, threshold, strand_specific ):
     """ find and collapse overlapping intervals """
     inodes = make_inodes( intervals )
     inodes = sorted( inodes, key=lambda inode: inode.start )
@@ -159,12 +140,13 @@ def overlap_intervals( intervals, threshold=1.0, strand_specific=True ):
         if not inode.visited:
             cclist.append( inode.get_connected_component( ) )
     # merge intervals and report as simple lists
-    results = []
+    results, numhits = [], []
     for cc in cclist:
         merged = merge_inodes( *cc ).to_list( )
         originals = [inode.to_list( ) for inode in cc]
-        results.append( [merged, originals] )
-    return results
+        results.append( merged )
+        numhits.append( len(originals) )
+    return results, numhits
 
 # ---------------------------------------------------------------
 # main
@@ -184,29 +166,29 @@ def main():
 
     for contig, hitlist in wu.iter_contig_hits( args.input ):
         intervals = hits2ints( hitlist, args.scov_hits )
-        newintervals = overlap_intervals( intervals, threshold=args.overlap_hits, strand_specific=args.strand)
-
-	"""
-	@codereview 9/2/2016
-	Can change return value of overlap_intervals so you don't have do deal with double index in gene
-	"""
+        newintervals, newint_num = overlap_intervals( intervals, args.overlap_hits, args.strand)
                 
         counter = 1
-        for gene in newintervals:
-            start, end, strand = gene[0][0], gene[0][1], gene[0][2]
+        for i in range( len( newintervals ) ):
+            gene = newintervals[i]
+            numhits = newint_num[i]
+            start, end, strand = gene[0], gene[1], gene[2]
             genelen = end - start + 1
 
             if genelen > args.length:
-                score = len( gene[1] )
+                score = numhits
                 name = 'ID=' + contig + '_' + str(counter)
-                
-		"""
-		@codereview 9/2/2016
-		What is happening here?
-		"""	
-
-		gff = wu.print_gff( wu.GFF( [contig, 'WAAFLE', 'CDS', start, end, score, strand, '0', name] ) ) 
-                writer.writerow( [str(x) for x in gff] )
+                writer.writerow( [str(x) for x in [
+                                                contig, 
+                                                'WAAFLE', 
+                                                'CDS', 
+                                                start, 
+                                                end, 
+                                                score, 
+                                                strand, 
+                                                '0', 
+                                                name
+                                                ]] ) 
                 counter += 1
 
     fh.close()
