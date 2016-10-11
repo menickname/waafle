@@ -89,6 +89,20 @@ c_taxafields = [
     ["hits", int],
 ]
 
+c_results = [
+    ["contig", str],
+    ["length", int],
+    ["status", str],
+    ["onescore", float],
+    ["twoscore", float],
+    ["onebug", str],
+    ["onesyn", str],
+    ["twobug", str],
+    ["twosyn", str],
+    ["uniref50", str],
+    ["uniref90", str],
+]
+
 # ---------------------------------------------------------------
 # classes for working with hits and gff (here to force equivalenence with output)
 # ---------------------------------------------------------------
@@ -191,6 +205,31 @@ class Taxa( ):
         for [fname, ftype], value in zip( c_taxafields, taxainfo ):
             setattr( self, fname, ftype( value ) )
 
+class Result( ):
+    """
+    Details of the scored contigs file:
+    Fields should be tab-separated.
+
+    0: contig - name of the contig
+    1: length - length of the contig
+    2: status - whether LGT, Ambiguous, or NoLGT was called.
+    3: onebugscore
+    4: twobugscore
+    5: onebug - taxa for onebug, if NoLGT.
+    6: onebugsyn - gene order for onebug.
+    7: twobug - taxa for bug pair, if LGT.
+    8: twobugsyn - gene order for taxa pair. 
+        A indicates the first bug in the pair.
+        B indicates the second bug in the pair.
+        C indicates either bug.
+    9: uniref50 - best uniref50 annotation that is not unknown.
+    10: uniref90 - best uniref90 annotation that is not unknown.
+        Unirefs are split by ';' per gene.
+        '|' indicates multiple unirefs per gene.
+    """
+    def __init__(self, result ):
+        for [fname, ftype], value in zip( c_results, result ):
+            setattr( self, fname, ftype( value ) )
 
 class INode:
     """interval node: represents an interval + some network properties""" 
