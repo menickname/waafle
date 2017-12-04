@@ -121,7 +121,8 @@ def score_taxa( gene, info, contiglen ):
             taxa = level + '__Unknown'
             taxaname.append( taxa )
         taxa = '|'.join( taxaname )
-        start_list, end_list, score = gene.start, gene.end, 1 
+        start_list, end_list, score = gene.start, gene.end, 1
+        dict_taxaarray[ taxa ] = np.ones( genelen ) 
         taxa = wu.Taxa( [
                     gene.seqname, 
                     contiglen, 
@@ -133,12 +134,12 @@ def score_taxa( gene, info, contiglen ):
                     start_list, 
                     end_list, 
                     score, 
-                    'No_Uniref50', 
-                    'No_Uniref90', 
+                    'UniRef50_unknown:0', 
+                    'UniRef90_unknown:0', 
                     0,
                     ] )
         taxalist.append( taxa )
-        dict_taxaarray[ taxa ] = np.ones( genelen )
+        #dict_taxaarray[ taxa ] = np.ones( genelen )
     else:
         for taxa in taxaset:
             dict_taxaarray.setdefault( taxa, np.zeros( genelen ) )
@@ -559,7 +560,7 @@ def main():
     dict_genes = {}
     for contig, genelist in wu.iter_contig_genes( args.gff ):
         dict_genes[contig] = genelist
-
+    
     #Group taxa based on new genes
     for contig, hitlist in wu.iter_contig_hits( args.blast ):
         if contig in dict_genes: #some contigs have hits but not genes
