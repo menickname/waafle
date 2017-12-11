@@ -67,7 +67,7 @@ c_gfffields = [
     ["feature", str],
     ["start", int],
     ["end", int],
-    ["score", float],
+    ["score", str],
     ["strand", str],
     ["frame", str],
     ["attribute", str],
@@ -174,12 +174,20 @@ class GFF( ):
     def __init__( self, gffrow ):
         for [fname, ftype], value in zip( c_gfffields, gffrow ):
        	    setattr( self, fname, ftype( value ) )
-        attritems = self.attribute.split(';')
+        if self.source == 'waafle_synthetic':
+            attritems = self.attribute.split('; ')
+        else:
+            attritems = self.attribute.split(';')
         dict_attr = {}
         for items in attritems:
-            if len( items.split('=') ) == 2:
-                label, descriptor = items.split('=')
-                dict_attr[label] = descriptor
+            if self.source == 'waafle_synthetic':
+                if len( items.split(' ') ) == 2:
+                    label, descriptor = items.split(' ')
+                    dict_attr[label] = descriptor.replace('\"', '')
+            else:
+                if len( items.split('=') ) == 2:
+                    label, descriptor = items.split('=')
+                    dict_attr[label] = descriptor
         self.attributes = dict_attr
 
 class Taxa( ):

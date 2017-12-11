@@ -591,6 +591,7 @@ def main():
                 #Generate table for contig
                 matrix, taxaorder = generate_matrix( dict_genearray, taxalevel )
                 matrix_u, taxaorder_u = spike_unknown( matrix, taxaorder, args.unknown )
+                print( contig )
                 onebugscore, onebug, onebugsyn, twobugscore, twobug, twobugsyn, found, status = det_status( matrix_u, taxaorder_u, args.onebug, args.twobug )
                 if found == True:
                     break
