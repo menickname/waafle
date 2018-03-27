@@ -31,7 +31,7 @@ import sys
 import csv
 import argparse
 
-from waafle_packaging import utils as wu
+from waafle import utils as wu
 
 # ---------------------------------------------------------------
 # description

@@ -31,6 +31,8 @@ import os
 import sys
 import csv
 import re
+import gzip
+import bz2
 
 # ---------------------------------------------------------------
 # ---------------------------------------------------------------
@@ -53,13 +55,17 @@ def name2path( name, root=".", ext="" ):
     return os.path.join( root, name+ext )
 
 def try_open( path, *args ):
-    """
-    Open a file; fail gracefully
-    """
+    """ Open a file; fail gracefully """
+    fh = None
     try:
-        fh = open( path, *args )
+        if path.endswith( ".gz" ):
+            fh = gzip.GzipFile( path, *args )
+        elif path.endswith( ".bz2" ):
+            fh = bz2.BZ2File( path, *args )
+        else:
+            fh = open( path, *args )
     except:
-        sys.exit( "Can't open blast out file: {}".format( path ) )
+        sys.exit( "Can't open file: {}".format( path ) )
     return fh
 
 def describe( text, width=80, margin=2 ):

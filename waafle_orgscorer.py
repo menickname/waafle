@@ -35,8 +35,8 @@ from collections import Counter
 
 import numpy as np
 
-from waafle_packaging import utils as wu
-from waafle_packaging.waafle_genecaller import attach_shared_args
+from waafle import utils as wu
+from waafle.waafle_genecaller import attach_shared_args
 
 # ---------------------------------------------------------------
 # description

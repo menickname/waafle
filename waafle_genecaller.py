@@ -31,7 +31,7 @@ import sys
 import csv
 import argparse
 
-from waafle_packaging import utils as wu
+from waafle import utils as wu
 
 # ---------------------------------------------------------------
 # description
@@ -200,7 +200,7 @@ def main( ):
 
     args = get_args( )
     if args.gff is None:
-        name = wu.path2name( args.input )
+        name = wu.path2name( args.blastout )
         args.gff = wu.name2path( name, ".", ".gff" )
 
     fh_gff = wu.try_open( args.gff, "w" )
@@ -214,7 +214,8 @@ def main( ):
         intervals = overlap_intervals( 
             intervals, 
             args.min_overlap, 
-            args.stranded, )
+            args.stranded, 
+            )
         for start, stop, strand in intervals:
             gene_length = stop - start + 1
             if gene_length >= args.min_gene_length:
