@@ -55,19 +55,23 @@ correpond to putative LGTs.
 # constants
 # ---------------------------------------------------------------
 
-c_update = 100
-c_precision = 3
-c_annotation_prefix = "ANNOTATIONS:"
-c_missing_annotation = "N/A"
-c_empty_field = "-"
-c_delim0 = "; "
-c_delim1 = "|"
-c_delim2 = ":"
+c_update             = 100
+c_precision          = 3
+c_annotation_prefix  = "ANNOTATIONS:"
+c_missing_annotation = "None"
+c_empty_field        = "--"
+c_delim0             = "\t"
+c_delim1             = "; "
+c_delim2             = "|"
+c_delim3             = ":"
+# note: "A" and "B" synchars are hardcoded
+c_synchar_ambiguous  = "*"
+c_synchar_ignored    = "~"
+c_synchar_error      = "!"
 
-# note: "A" and "B" hardcoded
-c_synchar_ambiguous = "*"
-c_synchar_ignored = "~"
-c_synchar_error = "!"
+# ---------------------------------------------------------------
+# output formats
+# ---------------------------------------------------------------
 
 c_formats = {}
 
@@ -109,8 +113,20 @@ contig_length
 loci
 """
 
+c_formats["details"] = """
+contig_name
+iteration
+clade
+gene_scores
+gene_spans
+"""
+
+# convert to rows
 for name, items in c_formats.items( ):
     c_formats[name] = [k for k in items.split( "\n" ) if k != ""]
+
+# subset everything except the details format
+c_main_formats = {k:c_formats[k] for k in "lgt no_lgt unclassified".split( )}
 
 # ---------------------------------------------------------------
 # cli
@@ -155,6 +171,11 @@ def get_args( ):
         default=None,
         metavar="<str>",
         help="basename for output files\n[default: derived from input]",
+        )
+    g.add_argument(
+        "--write-details",
+        action="store_true",
+        help="make an additional output file with per-gene clade scores\n[default: off]",
         )
 
     # main waafle params
@@ -515,27 +536,21 @@ def hit_locus_overlap( hit, locus ):
     # calc_overlap sorts start/end internally
     return wu.calc_overlap( a1, a2, b1, b2 )
 
-def write_details( contig, details ):
-    for clade, array in contig.gene_scores.items( ):
-        outline = [contig.name, clade] + ["{:.3f}".format( k ) for k in array]
-        outline = "\t".join( outline )
-        print( outline, file=details )
-
-def evaluate_contig( contig, taxonomy, args, details ):
-    write_details( contig, details )
+def evaluate_contig( contig, taxonomy, details, args ):
+    iteration = 1
+    write_details( details, contig, iteration )
     best_one = explain_one( contig, taxonomy, args )
     best_two = explain_two( contig, taxonomy, args ) if not_ok( best_one ) else None
-    escape = 0
     while len( contig.clades ) > 0 and \
             "r__Root" not in contig.clades and \
             not_ok( best_one ) and \
             not_ok( best_two ):
         contig.raise_taxonomy( taxonomy )
-        write_details( contig, details )
+        write_details( details, contig, iteration )
         best_one = explain_one( contig, taxonomy, args )
         best_two = explain_two( contig, taxonomy, args ) if not_ok( best_one ) else None
-        escape += 1
-        if escape > 100:
+        iteration += 1
+        if iteration > 100:
             wu.die( "  Warning: Runaway taxonomic recursion for", contig.name )
     contig.best_one = best_one
     contig.best_two = best_two
@@ -697,48 +712,95 @@ def check_sister_penalty( option, taxonomy, args ):
 # output formatting
 # ---------------------------------------------------------------
 
-def write_result( rowdict, format, handle ):
+def make_tails_field( tails ):
+    """ make string representation of the melded clades """
+    ret = ""
+    if tails is not None:
+        items = set( )
+        for t in tails:
+            if len( t ) > 0:
+                items.add( c_delim2.join( t ) )
+        ret = c_delim1.join( sorted( items ) )
+    return ret
+
+def make_loci_field( loci ):
+    """ make string representation of contig loci """
+    items = []
+    for L in loci:
+        triple = [L.start, L.end, L.strand]
+        triple = [str( k ) for k in triple]
+        items.append( c_delim3.join( triple ) )
+    return c_delim2.join( items )
+
+def make_gene_scores_field( contig, clade ):
+    scores = ["{A:.{B}f}".format( A=s, B=c_precision ) \
+                  for s in contig.gene_scores[clade]]
+    return c_delim2.join( scores )
+
+def make_gene_spans_field( contig, clade ):
+    items = []
+    for L in contig.loci:
+        site_scores = contig.site_scores[clade].get( L.name, None )
+        if site_scores is None:
+            items.append( c_missing_annotation )
+            continue
+        spans = []
+        start, stop = None, None
+        for i, val in enumerate( site_scores ):
+            if val > 0:
+                if start is None:
+                    start = stop = i
+                else:
+                    stop = i
+            elif start is not None:
+                spans.append( [start, stop] )
+                start, stop = None, None
+        if stop is not None:
+            spans.append( [start, stop] )
+        spans = ["{}{}{}".format( start+1, c_delim3, stop+1 ) \
+                     for start, stop in spans]
+        items.append( c_delim3.join( spans ) )
+    return c_delim2.join( items )
+
+def attach_rowdict_functions( rowdict, contig, systems ):
+    """ update rowdict with contig functions """
+    for s in systems:
+        items = []
+        for locus in contig.loci:
+            items.append( locus.annotations.get( s, c_missing_annotation ) )
+        # note: key here must match definition in headers
+        rowdict[c_annotation_prefix + s] = c_delim2.join( items )
+
+def write_rowdict( rowdict, format, handle ):
+    """ write rowdict line conditioned on format """
     if set( rowdict ) != set( format ):
         wu.die( "Format mismatch." )
     else:
         items = []
         for f in format:
             if type( rowdict[f] ) in [float, np.float32, np.float64]:
-                rowdict[f] = round( rowdict[f], c_precision )
+                rowdict[f] = "{A:.{B}f}".format( A=rowdict[f], B=c_precision )
             items.append( str( rowdict[f] ) if rowdict[f] != "" else c_empty_field )
         try:
-            print( "\t".join( items ), file=handle )
+            print( c_delim0.join( items ), file=handle )
         except:
             wu.say( items )
             sys.exit( )
 
-def loci_string( loci ):
-    items = []
-    for L in loci:
-        triple = [L.start, L.end, L.strand]
-        triple = [str( k ) for k in triple]
-        items.append( c_delim2.join( triple ) )
-    return c_delim1.join( items )
+def write_details( details, contig, iteration ):
+    if details is not None:
+        for clade in contig.clades:
+            rowdict = {
+                "contig_name": contig.name,
+                "iteration":   iteration,
+                "clade":       clade,
+                "gene_scores": make_gene_scores_field( contig, clade ),
+                "gene_spans":  make_gene_spans_field( contig, clade ),
+                #"gene_spans":  c_empty_field,
+                }
+            write_rowdict( rowdict, c_formats["details"], details )
 
-def add_functions( rowdict, contig, systems ):
-    for s in systems:
-        items = []
-        for locus in contig.loci:
-            items.append( locus.annotations.get( s, c_missing_annotation ) )
-        # note: key here must match definition in headers
-        rowdict[c_annotation_prefix + s] = c_delim1.join( items )
-
-def format_tails( tails ):
-    ret = ""
-    if tails is not None:
-        items = set( )
-        for t in tails:
-            if len( t ) > 0:
-                items.add( c_delim1.join( t ) )
-        ret = c_delim0.join( sorted( items ) )
-    return ret
-
-def write_output_files( contigs, taxonomy, args ):
+def write_main_output_files( contigs, taxonomy, args ):
 
     # open output file handles
     wu.say( "Initializing outputs." )
@@ -755,13 +817,13 @@ def write_output_files( contigs, taxonomy, args ):
         for locus in contig.loci:
             for system in locus.annotations:
                 systems.add( system )
-    for option in c_formats:
+    for option in c_main_formats:
         for s in sorted( systems ):
             c_formats[option].append( c_annotation_prefix + s )
 
     # print headers
     for name in handles:
-        print( "\t".join( [k.upper( ) for k in c_formats[name]] ), file=handles[name] )  
+        print( c_delim0.join( [k.upper( ) for k in c_main_formats[name]] ), file=handles[name] )  
         
     # write results (sorted loop over contigs)
     for contig_name in sorted( contigs ):
@@ -774,10 +836,10 @@ def write_output_files( contigs, taxonomy, args ):
                 "contig_name":   contig_name,
                 "call":          "unclassified",
                 "contig_length": contig.length,
-                "loci":          loci_string( contig.loci ),
+                "loci":          make_loci_field( contig.loci ),
                 }
-            add_functions( rowdict, contig, systems )
-            write_result( rowdict, c_formats["unclassified"], handles["unclassified"] )
+            attach_rowdict_functions( rowdict, contig, systems )
+            write_rowdict( rowdict, c_formats["unclassified"], handles["unclassified"] )
         # no_lgt
         elif is_ok( best_one ):
             clade = best_one.clade1
@@ -789,12 +851,12 @@ def write_output_files( contigs, taxonomy, args ):
                 "avg_score":     best_one.rank,
                 "synteny":       best_one.synteny,
                 "clade":         clade,
-                "taxonomy":      c_delim1.join( taxonomy.get_lineage( clade ) ),
-                "melded":        format_tails( best_one.tails1 ),
-                "loci":          loci_string( contig.loci ),
+                "taxonomy":      c_delim2.join( taxonomy.get_lineage( clade ) ),
+                "melded":        make_tails_field( best_one.tails1 ),
+                "loci":          make_loci_field( contig.loci ),
                 }
-            add_functions( rowdict, contig, systems )
-            write_result( rowdict, c_formats["no_lgt"], handles["no_lgt"] )
+            attach_rowdict_functions( rowdict, contig, systems )
+            write_rowdict( rowdict, c_formats["no_lgt"], handles["no_lgt"] )
         # lgt
         elif is_ok( best_two ):
             clade1, clade2 = best_two.clade1, best_two.clade2
@@ -809,14 +871,14 @@ def write_output_files( contigs, taxonomy, args ):
                 "clade_A":       clade1, 
                 "clade_B":       clade2,
                 "lca":           taxonomy.get_lca( clade1, clade2 ),
-                "taxonomy_A":    c_delim1.join( taxonomy.get_lineage( clade1 ) ),
-                "taxonomy_B":    c_delim1.join( taxonomy.get_lineage( clade2 ) ),
-                "melded_A":      format_tails( best_two.tails1 ),
-                "melded_B":      format_tails( best_two.tails2 ),
-                "loci":          loci_string( contig.loci ),
+                "taxonomy_A":    c_delim2.join( taxonomy.get_lineage( clade1 ) ),
+                "taxonomy_B":    c_delim2.join( taxonomy.get_lineage( clade2 ) ),
+                "melded_A":      make_tails_field( best_two.tails1 ),
+                "melded_B":      make_tails_field( best_two.tails2 ),
+                "loci":          make_loci_field( contig.loci ),
                 }
-            add_functions( rowdict, contig, systems )
-            write_result( rowdict, c_formats["lgt"], handles["lgt"] )
+            attach_rowdict_functions( rowdict, contig, systems )
+            write_rowdict( rowdict, c_formats["lgt"], handles["lgt"] )
 
     # wrap up
     for h in handles.values( ):
@@ -850,13 +912,19 @@ def main( ):
         C = contigs[contig_name]
         C.attach_loci( loci )
 
+    # prepare details file
+    details = None
+    if args.write_details:
+        details = wu.try_open( os.path.join( 
+                args.outdir, args.basename + ".details.tsv" ), "w" )
+        # headers
+        print( c_delim0.join( [k.upper( ) for k in c_formats["details"]] ), file=details )
+
     # parse hits, process contigs
     wu.say( "Analyzing contigs." )
     if len( contigs ) > c_update:
         wu.say( "  Progress =" )
     progress = 0
-
-    details = open( os.path.join( args.outdir, args.basename + ".details" ), "w" )
 
     # major contig loop
     for contig_name, hits in wu.iter_contig_hits( args.blastout ):
@@ -877,13 +945,13 @@ def main( ):
                 C.raise_taxonomy( taxonomy )
         # evaluate; note: the 'ignore' option can result in "empty" contigs
         if not all( [L.ignore for L in C.loci] ):
-            evaluate_contig( C, taxonomy, args, details )
+            evaluate_contig( C, taxonomy, details, args )
 
     # wrap up
-    write_output_files( contigs, taxonomy, args )
+    write_main_output_files( contigs, taxonomy, args )
     wu.say( "Finished successfully." )
-
-    details.close( )
+    if details is not None:
+        details.close( )
                     
 if __name__ == "__main__":
     main( )

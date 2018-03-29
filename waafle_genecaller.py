@@ -51,9 +51,7 @@ GFF file.
 # ---------------------------------------------------------------
 
 def get_args( ):
-    """
-    Get arguments passed to script
-    """
+    """ Get arguments passed to script """
     parser = argparse.ArgumentParser(
         description=description,
         formatter_class=argparse.RawTextHelpFormatter,
@@ -81,6 +79,7 @@ def get_args( ):
     return args
 
 def attach_shared_args( parser ):
+    """ these arguments are shared with orgscorer """
     parser.add_argument(
         "--min-gene-length",
         default=200,
@@ -90,17 +89,16 @@ def attach_shared_args( parser ):
         )
     parser.add_argument(
         "--min-scov",
-        default=0.8,
+        default=0.75,
         type=float,
         metavar="<float>",
-        help="(modified) scoverage filter for hits to gene catalog\n[default: 0.8]",
+        help="(modified) scoverage filter for hits to gene catalog\n[default: 0.75]",
         )
     parser.add_argument(
         "--stranded",
         action="store_true",
         help="only merge hits into hits/genes of the same strandedness\n[default: off]",
         )
-    return None
 
 # ---------------------------------------------------------------
 # utilities
