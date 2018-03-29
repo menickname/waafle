@@ -70,11 +70,11 @@ def get_args( ):
         )
     parser.add_argument(
         "--min-overlap",
-        default=0.75,
+        default=0.1,
         type=float,
         metavar="<float>",
         help=("if a large hit covers this fraction of a smaller hit, "
-              "consider them part of the same gene group\n[default: 0.75]"),
+              "consider them part of the same gene group\n[default: 0.1]"),
         )
     attach_shared_args( parser )
     args = parser.parse_args( )
@@ -90,10 +90,10 @@ def attach_shared_args( parser ):
         )
     parser.add_argument(
         "--min-scov",
-        default=0.2,
+        default=0.8,
         type=float,
         metavar="<float>",
-        help="(modified) scoverage filter for hits to gene catalog\n[default: 0.2]",
+        help="(modified) scoverage filter for hits to gene catalog\n[default: 0.8]",
         )
     parser.add_argument(
         "--stranded",

@@ -515,7 +515,14 @@ def hit_locus_overlap( hit, locus ):
     # calc_overlap sorts start/end internally
     return wu.calc_overlap( a1, a2, b1, b2 )
 
-def evaluate_contig( contig, taxonomy, args ):
+def write_details( contig, details ):
+    for clade, array in contig.gene_scores.items( ):
+        outline = [contig.name, clade] + ["{:.3f}".format( k ) for k in array]
+        outline = "\t".join( outline )
+        print( outline, file=details )
+
+def evaluate_contig( contig, taxonomy, args, details ):
+    write_details( contig, details )
     best_one = explain_one( contig, taxonomy, args )
     best_two = explain_two( contig, taxonomy, args ) if not_ok( best_one ) else None
     escape = 0
@@ -524,6 +531,7 @@ def evaluate_contig( contig, taxonomy, args ):
             not_ok( best_one ) and \
             not_ok( best_two ):
         contig.raise_taxonomy( taxonomy )
+        write_details( contig, details )
         best_one = explain_one( contig, taxonomy, args )
         best_two = explain_two( contig, taxonomy, args ) if not_ok( best_one ) else None
         escape += 1
@@ -848,6 +856,8 @@ def main( ):
         wu.say( "  Progress =" )
     progress = 0
 
+    details = open( os.path.join( args.outdir, args.basename + ".details" ), "w" )
+
     # major contig loop
     for contig_name, hits in wu.iter_contig_hits( args.blastout ):
         if contig_name not in contigs:
@@ -867,11 +877,13 @@ def main( ):
                 C.raise_taxonomy( taxonomy )
         # evaluate; note: the 'ignore' option can result in "empty" contigs
         if not all( [L.ignore for L in C.loci] ):
-            evaluate_contig( C, taxonomy, args )
+            evaluate_contig( C, taxonomy, args, details )
 
     # wrap up
     write_output_files( contigs, taxonomy, args )
     wu.say( "Finished successfully." )
+
+    details.close( )
                     
 if __name__ == "__main__":
     main( )
