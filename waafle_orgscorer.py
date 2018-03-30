@@ -738,29 +738,20 @@ def make_gene_scores_field( contig, clade ):
     return c_delim2.join( scores )
 
 def make_gene_spans_field( contig, clade ):
-    items = []
+    gene_spans = []
     for L in contig.loci:
         site_scores = contig.site_scores[clade].get( L.name, None )
         if site_scores is None:
-            items.append( c_missing_annotation )
+            gene_spans.append( c_missing_annotation )
             continue
-        spans = []
-        start, stop = None, None
-        for i, val in enumerate( site_scores ):
-            if val > 0:
-                if start is None:
-                    start = stop = i
-                else:
-                    stop = i
-            elif start is not None:
-                spans.append( [start, stop] )
-                start, stop = None, None
-        if stop is not None:
-            spans.append( [start, stop] )
-        spans = ["{}{}{}".format( start+1, c_delim3, stop+1 ) \
-                     for start, stop in spans]
-        items.append( c_delim3.join( spans ) )
-    return c_delim2.join( items )
+        else:
+            # non-zero indices (base-1)
+            z = 1 + np.nonzero( site_scores )[0]
+            # first, last, and "jump" indices
+            z = [str( k ) for i, k in enumerate( z ) \
+                     if (i==0 or i+1==len( z ) or z[i+1]-z[i-1]>2)]
+            gene_spans.append( c_delim3.join( z ) )
+    return c_delim2.join( gene_spans )
 
 def attach_rowdict_functions( rowdict, contig, systems ):
     """ update rowdict with contig functions """
