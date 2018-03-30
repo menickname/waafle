@@ -55,7 +55,6 @@ correpond to putative LGTs.
 # constants
 # ---------------------------------------------------------------
 
-c_update             = 100
 c_precision          = 3
 c_annotation_prefix  = "ANNOTATIONS:"
 c_missing_annotation = "None"
@@ -176,6 +175,11 @@ def get_args( ):
         "--write-details",
         action="store_true",
         help="make an additional output file with per-gene clade scores\n[default: off]",
+        )
+    g.add_argument(
+        "--quiet",
+        action="store_true",
+        help="don't show running progress\n[default: off]",
         )
 
     # main waafle params
@@ -302,6 +306,8 @@ class Contig( ):
         self.name = name
         # program arguments
         self.args = args
+        # position of the contig in the original file
+        self.index = None
         # length of the contig
         self.length = None
         # sequential locus object for each gene on contig
@@ -746,11 +752,13 @@ def make_gene_spans_field( contig, clade ):
             continue
         else:
             # non-zero indices (base-1)
-            z = 1 + np.nonzero( site_scores )[0]
-            # first, last, and "jump" indices
-            z = [str( k ) for i, k in enumerate( z ) \
-                     if (i==0 or i+1==len( z ) or z[i+1]-z[i-1]>2)]
-            gene_spans.append( c_delim3.join( z ) )
+            nzi = 1 + np.nonzero( site_scores )[0]
+            # isolate interesting indices (step-1 to left or right but not both)
+            L_diff = np.concatenate( [[0], nzi[1:] - nzi[0:-1]] )
+            R_diff = np.concatenate( [nzi[1:] - nzi[0:-1], [0]] )
+            select = np.logical_xor( L_diff==1, R_diff==1 )
+            nzi = nzi[select]
+            gene_spans.append( c_delim3.join( [str( k ) for k in nzi] ) )
     return c_delim2.join( gene_spans )
 
 def attach_rowdict_functions( rowdict, contig, systems ):
@@ -889,9 +897,12 @@ def main( ):
     wu.say( "Initializing contigs." )
     contigs = {}
     contig_lengths = wu.read_contig_lengths( args.contigs )
+    index = 0
     for contig_name, length in contig_lengths.items( ):
         C = Contig( contig_name, args )
         C.length = length
+        index += 1
+        C.index = index
         contigs[contig_name] = C
 
     # process gff
@@ -913,9 +924,6 @@ def main( ):
 
     # parse hits, process contigs
     wu.say( "Analyzing contigs." )
-    if len( contigs ) > c_update:
-        wu.say( "  Progress =" )
-    progress = 0
 
     # major contig loop
     for contig_name, hits in wu.iter_contig_hits( args.blastout ):
@@ -923,11 +931,10 @@ def main( ):
             wu.say( "  Unknown contig in <blastout> file", contig_name )
             continue
         # this is a good contig
-        progress += 1
-        if progress % c_update == 0:
-            wu.say( "  {:.1f}%".format( 100 * progress / float( len( contigs ) ) ) )
-        # attach hits to genes
         C = contigs[contig_name]
+        if not args.quiet:
+            wu.say( "  #{:>7,} of {:>7,}".format( C.index, len( contigs ) ) )
+        # attach hits to genes
         C.attach_hits( hits )
         C.update_gene_scores( )
         # initial jumps?

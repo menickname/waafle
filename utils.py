@@ -33,6 +33,7 @@ import csv
 import re
 import gzip
 import bz2
+from collections import OrderedDict
 
 # ---------------------------------------------------------------
 # ---------------------------------------------------------------
@@ -102,7 +103,7 @@ def describe( text, width=80, margin=2 ):
     return "\n".join( [k for k in newlines] )
 
 def read_contig_lengths( fasta ):
-    data = {}
+    data = OrderedDict( )
     header = None
     with try_open( fasta ) as fh:
         for line in fh:
