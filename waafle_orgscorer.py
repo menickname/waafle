@@ -746,11 +746,15 @@ def make_gene_scores_field( contig, clade ):
 def make_gene_spans_field( contig, clade ):
     gene_spans = []
     for L in contig.loci:
-        site_scores = contig.site_scores[clade].get( L.name, None )
-        if site_scores is None:
+        if clade not in contig.site_scores:
+            # no site scores for this clade, e.g. spiked unknown
             gene_spans.append( c_missing_annotation )
-            continue
+        elif L.name not in contig.site_scores[clade]:
+            # no hits for this gene in this clade
+            gene_spans.append( c_missing_annotation )
         else:
+            # scores exist
+            site_scores = contig.site_scores[clade][L.name]
             # non-zero indices (base-1)
             nzi = 1 + np.nonzero( site_scores )[0]
             # isolate interesting indices (step-1 to left or right but not both)
@@ -918,7 +922,7 @@ def main( ):
     details = None
     if args.write_details:
         details = wu.try_open( os.path.join( 
-                args.outdir, args.basename + ".details.tsv" ), "w" )
+                args.outdir, args.basename + ".details.tsv.gz" ), "w" )
         # headers
         print( c_delim0.join( [k.upper( ) for k in c_formats["details"]] ), file=details )
 
