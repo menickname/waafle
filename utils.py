@@ -294,12 +294,16 @@ Could update this later.
 def iter_loci( gff_file, attach_annotations=True ):
     with try_open( gff_file ) as fh:
         for row in csv.reader( fh, csv.excel_tab ):
+            if row[0][0] == "#":
+                continue
             yield Locus( row, attach_annotations=attatch_annotations )
 
 def iter_contig_loci( gff_file, attach_annotations=True ):
     contig, loci = None, []
     with try_open( gff_file ) as fh:
         for row in csv.reader( fh, csv.excel_tab ):
+            if row[0][0] == "#":
+                continue
             l = Locus( row, attach_annotations=attach_annotations )
             if contig is not None and l.seqname != contig:
                 yield contig, loci
