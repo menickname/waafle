@@ -1,8 +1,10 @@
-# WAAFLE Demo
+# Welcome to the WAAFLE Demo
+
+## Table of contents
 
 [TOC]
 
-## Introduction to WAAFLE
+## What is WAAFLE?
 
 Lateral gene transfer (LGT) is an important mechanism for genome diversification in microbial communities, including the human microbiome. While methods exist to identify LGTs from sequenced isolate genomes, identifying LGTs from community metagenomes remains an open problem. To address this, we developed **WAAFLE**: the **W**orkflow to **A**nnotate **A**ssemblies and **F**ind **L**GT **E**vents.
 
@@ -16,12 +18,12 @@ Both cases consider contigs with six protein-coding loci (determined from WAAFLE
 
 In Example 2, no single species can explain all of the loci (the minimum score for each species is below k~1~). However, the pair of species **A** and **B** have strong hits (>k~2~) to all loci, and so WAAFLE concludes that this contig may represent an A+B LGT. Given the `AABBAA` synteny pattern, a B-to-A transfer would appear to be the more likely mechanism.
 
-## WAAFLE requirements
+## Software requirements
 
 * `blastn`
 * `Python 2.7+` with `numpy` installed
 
-## Getting started
+## Getting started with WAAFLE
 
 Clone the WAAFLE repository to get started:
 
@@ -32,7 +34,7 @@ $ cd waafle/
 
 This folder contains the WAAFLE scripts and a `demo/` folder containing files for this demo. The commands below assume you are running the scripts from the `demo/` folder. Execute `$ cd demo` to enter the demo folder.
 
-## Demo files
+## What's in the demo?
 
 Under the WAAFLE `demo/` folder you'll find three subfolders:
 
@@ -54,7 +56,7 @@ Inspect the demo files with `less` or other shell commands to answer the followi
 * **Which species has the most supporting genomes in the taxonomy file? (Hint: genomes are the leaves of the taxonomy, and are prefixed with `t__`.)**
 ***
 
-## Step 1. Generate BLAST hits with `waafle_search`.
+## Step 1. Generate BLAST hits with waafle_search.
 
 The first step in the WAAFLE workflow is to search the input contigs against a WAAFLE-formatted pangenome database. See the options for the `waafle_search` program using the help command:
 
@@ -102,7 +104,7 @@ Answer the following questions about the BLAST output by using shell commands OR
 * **Did any contigs receive hits to more than on species?**
 ***
 
-## Step 2. Call genes with `waafle_genecaller`.
+## Step 2. Call genes with waafle_genecaller.
 
 In order to classify the contigs, WAAFLE compares the BLAST hits generated above to a set of predicted protein-codi loci within the contigs, as defined by a [GFF file](https://useast.ensembl.org/info/website/upload/gff.html). WAAFLE includes a utility to call genes within contigs based on the BLAST output itself by clustering the start and stop coordinates of hits along the length of the contig.
 
@@ -140,7 +142,7 @@ Answer the following questions about the GFF output by using shell commands OR t
 * **Do any contigs contain genes on only the forward strand or only the reverse strand?**
 ***
 
-## Step 3. Find LGTs with `waafle_orgscorer`.
+## Step 3. Find LGT-containing contigs with waafle_orgscorer.
 
 The last step in the WAAFLE workflow is also the most important: comparing per-species BLAST hits with the contig's gene coordinates (loci) to try to find one- and two-species explanations for contigs (as described in the algorithm overview above). This step is peformed by the `waafle_orgscorer` utility. This utility has *many* tunable parameters. You can inspect them with the `$ ../waafle_orgscorer.py -h` command:
 
@@ -177,7 +179,7 @@ This produces three output files:
 * `demo_contigs.no_lgt.tsv` contains descriptions of contigs explained by single species/clades.
 * `demo_contigs.unclassified.tsv` contains descriptions of contigs that could not be explained by either single species or pairs of species.
 
-### One-species (no-LGT) contigs
+### Examining one-clade (no-LGT) contigs
 
 Most contigs are assigned to the `no_lgt` bin. Let's inspect a subset of the fields from this file with `cut` and `less`:
 
@@ -212,7 +214,7 @@ Answer the following questions about the one-species contigs by using shell comm
 * **When WAAFLE fails to find a one- or two-species explanation, it repeats its search at the next highest-level clades, looking for (e.g.) one-genus vs. two-genera explanations. Are there any instances of this behavior in the "one species" output?**
 ***
 
-### Two-species (putative LGT) contigs
+### Examining two-clade (putative LGT) contigs
 
 You've waited long enough: let's examine some putative LGTs in the `demo_contigs.lgt.tsv` file. We'll again focus on a subset of the output columns:
 
@@ -257,7 +259,7 @@ Challenge questions:
 * **Assuming that an average gene is 1 kb long, what is your estimate for the number of LGT events per megabase of microbial genome in this sample?**
 ***
 
-## Extension A: Prodigal gene calls
+## Extension A: Working with Prodigal gene calls
 
 In the workflow above, we used `waafle_genecaller` to identify potential coding loci in our contigs. As alluded to above, we can also perform this step with an independent open reading frame (ORF) detection system, such as [Prodigal](https://github.com/hyattpd/Prodigal). 
 
@@ -281,7 +283,7 @@ You'll notice that the synteny strings now contain a `~` character. This corresp
 * **What are pros and cons of using an ORF-based gene caller rather than homology-based gene definitions?**
 ***
 
-## Extension B: Experimenting with parameters
+## Extension B: Experimenting with LGT-calling parameters
 
 As noted above, there are many options for tuning the behavior of `waafle_orgscorer` using its configuration flags. The default settings for these parameters have all been pre-tuned for high sensitivity and specificity (based on evaluations of synthetic contigs of known LGT status). However, depending on your application, it may be useful to tune parameters for a more sensitive and less specific analysis (or vice versa).
 
