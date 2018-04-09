@@ -20,19 +20,25 @@ In Example 2, no single species can explain all of the loci (the minimum score f
 
 ## Software requirements
 
+* `Python 2.7+` with `numpy`
 * `blastn`
-* `Python 2.7+` with `numpy` installed
 
 ## Getting started with WAAFLE
 
-Clone the WAAFLE repository to get started:
+If you have mercurial (`hg`) available, you can clone the WAAFLE repository to get started:
 
 ```
 $ hg clone https://bitbucket.org/biobakery/waafle
-$ cd waafle/
 ```
 
-This folder contains the WAAFLE scripts and a `demo/` folder containing files for this demo. The commands below assume you are running the scripts from the `demo/` folder. Execute `$ cd demo` to enter the demo folder.
+Alternatively, you can download and extract the WAAFLE project:
+
+```
+$ wget https://bitbucket.org/biobakery/waafle/get/default.zip
+$ unzip default.zip
+```
+
+In either case, `cd` into the resulting directory (called `waafle` or `biobakery-waafle`). This folder contains the WAAFLE code and a `demo/` folder containing files for this demo. The commands below assume you are running the scripts from the `demo/` folder. (Use `cd` to enter `demo/`.)
 
 ## What's in the demo?
 
