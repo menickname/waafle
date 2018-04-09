@@ -1,5 +1,7 @@
 # WAAFLE Demo
 
+[TOC]
+
 ## Introduction to WAAFLE
 
 Lateral gene transfer (LGT) is an important mechanism for genome diversification in microbial communities, including the human microbiome. While methods exist to identify LGTs from sequenced isolate genomes, identifying LGTs from community metagenomes remains an open problem. To address this, we developed **WAAFLE**: the **W**orkflow to **A**nnotate **A**ssemblies and **F**ind **L**GT **E**vents.
