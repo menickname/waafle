@@ -18,6 +18,8 @@ Both cases consider contigs with six protein-coding loci (determined from WAAFLE
 
 In Example 2, no single species can explain all of the loci (the minimum score for each species is below k~1~). However, the pair of species **A** and **B** have strong hits (>k~2~) to all loci, and so WAAFLE concludes that this contig may represent an A+B LGT. Given the `AABBAA` synteny pattern, a B-to-A transfer would appear to be the more likely mechanism.
 
+Note that in Example 2, if species **C** had hits to the 2nd and 5th loci that exceeded k~1~ (as in Example 1), WAAFLE's algorithm would conservatively favor the weaker one-species explanation for the contig rather than invoking a two-species (LGT-based) explanation.
+
 ## Software requirements
 
 * `Python 2.7+` with `numpy`
@@ -40,17 +42,17 @@ $ unzip default.zip
 
 In either case, `cd` into the resulting directory (called `waafle` or `biobakery-waafle`). This folder contains the WAAFLE code and a `demo/` folder containing files for this demo. The commands below assume you are running the scripts from the `demo/` folder. (Use `cd` to enter `demo/`.)
 
-## What's in the demo?
+## Demo introduction
 
 Under the WAAFLE `demo/` folder you'll find three subfolders:
 
-* `input/` contains files to run the tutorial.
+* `input/` contains files used in the tutorial.
 * `output/` contains the expected outputs from each tutorial step.
 * `output_prodigal/` contains the expected outputs from each tutorial step assuming you used [Prodigal](https://github.com/hyattpd/Prodigal) for gene calling rather than WAAFLE itself.
 
 The `input/` folder contains three pieces of data:
 
-* `demo_contigs.fasta` is a set of input contigs derived from HMP stool sample SRS011084. (These contigs have been pre-screened to have uniform coverage to help rule out potential misassemblies.)
+* `demo_contigs.fasta` is a set of input contigs derived from [HMP stool sample SRS011084](https://www.hmpdacc.org/hmp/). (These contigs have been pre-screened for uniform coverage to help rule out misassembly events.)
 * `demo_waafledb/` is a reduced, WAAFLE-formatted BLAST database.
 * `demo_taxonomy.tsv` is a reduced taxonomy file for the species in the BLAST database.
 
@@ -58,8 +60,8 @@ Inspect the demo files with `less` or other shell commands to answer the followi
 
 ***
 * **How many contigs are present in the contigs file?**
-* **How many unique species are present in the taxonomy file? (Hint: the structure of the taxonomy file is a list of tab-separated child-parent relationships; species entries are prefixed with `s__`.)**
-* **Which species has the most supporting genomes in the taxonomy file? (Hint: genomes are the leaves of the taxonomy, and are prefixed with `t__`.)**
+* **How many unique species are present in the taxonomy file?** *(Hint: the structure of the taxonomy file is a list of tab-separated child-parent relationships; species entries are prefixed with `s__`.)*
+* **Which species has the most supporting genomes in the taxonomy file?** *(Hint: genomes are the leaves of the taxonomy, and are prefixed with `t__`.)*
 ***
 
 ## Step 1. Generate BLAST hits with waafle_search.
@@ -76,9 +78,9 @@ The two critical parameters are the query (contigs) and database. Let's search t
 $ ../waafle_search.py input/demo_contigs.fna input/demo_waafledb/demo_waafledb
 ```
 
-The command will finish quickly as both the input and database are quite small. Note the following line from the BLAST command:
+The command will finish quickly as both the input and database are small. Note the following line from the BLAST command:
 
-```-outfmt 6 qseqid sseqid qlen slen length qstart qend sstart send pident positive gaps evalue bitscore sstrand```
+```'-outfmt 6 qseqid sseqid qlen slen length qstart qend sstart send pident positive gaps evalue bitscore sstrand'```
 
 This is specifying the format of the tabular BLAST output. WAAFLE uses a number of non-default BLAST alignment statistics to compute its homology scores. You can find descriptions of these statistics in the BLAST detailed help menu, accessible by running `$ blastn -help`.
 
@@ -101,9 +103,9 @@ The columns of the output match the requested columns from the BLAST command. Mo
 
 ```UNIQUE-GENE-ID|SPECIES|ANNOTATION=VALUE```
 
-In the demo database, genes have been annotated with UniProt accession numbers. You can look up individual accession numbers on the UniProt website: e.g. http://www.uniprot.org/uniprot/D4JZK5.
+In the demo database, genes have been annotated with UniProt accession numbers. You can look up individual accession numbers on the UniProt website: e.g. [http://www.uniprot.org/uniprot/D4JZK5](http://www.uniprot.org/uniprot/D4JZK5).
 
-Answer the following questions about the BLAST output by using shell commands OR through visual inspection:
+Answer the following questions about the BLAST output by using shell commands or visual inspection:
 
 ***
 * **Which contig received the most BLAST hits?**
@@ -141,16 +143,18 @@ This produced a file in GFF format called `demo_contigs.gff`. Inspect its conten
 
 Columns 1, 4, and 5 are the most important: they provide an index of the gene start and stop coordinates within each contig.
 
-Answer the following questions about the GFF output by using shell commands OR through visual inspection:
+Answer the following questions about the GFF output by using shell commands or visual inspection:
 
 ***
-* **Which contig(s) contain the most predicted genes?**
-* **Do any contigs contain genes on only the forward strand or only the reverse strand?**
+* **Which contig contains the most predicted genes?**
+* **Are the contigs 'gene-dense'? Does this match your expectation for prokaryotic genomes?**
 ***
 
 ## Step 3. Find LGT-containing contigs with waafle_orgscorer.
 
-The last step in the WAAFLE workflow is also the most important: comparing per-species BLAST hits with the contig's gene coordinates (loci) to try to find one- and two-species explanations for contigs (as described in the algorithm overview above). This step is peformed by the `waafle_orgscorer` utility. This utility has *many* tunable parameters. You can inspect them with the `$ ../waafle_orgscorer.py -h` command:
+The last step in the WAAFLE workflow is also the most important: comparing per-species BLAST hits with the contig's gene coordinates (loci) to try to find one- and two-species explanations for contigs (as described in the algorithm overview above). This step is peformed by the `waafle_orgscorer` utility. This utility has many tunable parameters, most of which are devoted to filtering and formatting the outputs. 
+
+You can inspect the parameters of `waafle_orgscorer` using the flag `-h` (for a summary) or `--help` (for details):
 
 ```
 usage: waafle_orgscorer.py [-h] [--outdir <path>] [--basename <str>]
@@ -169,7 +173,13 @@ usage: waafle_orgscorer.py [-h] [--outdir <path>] [--basename <str>]
                            contigs blastout gff taxonomy
 ```
 
-Note the k~1~ and k~2~ parameters from the algorithm overview above. These are tuned to 0.5 and 0.8 (respectively) by default. Lets try a run of `waafle_orgscorer` with only the four required arguments, `contigs blastout gff taxonomy`:
+The two most important parameters are k~1~ and k~2~, as introduced in the algorithm summary above.
+
+***
+* **What are the default values of k~1~ and k~2~?**
+***
+
+Lets try a run of `waafle_orgscorer` with only the four required arguments, `contigs blastout gff taxonomy`:
 
 ```
 $ ../waafle_orgscorer.py \
@@ -208,21 +218,25 @@ CONTIG_NAME  MIN_SCORE  AVG_SCORE  SYNTENY    CLADE
 14528        0.901      0.917      AAAA       s__Collinsella_aerofaciens
 ```
 
-In the case of the first contig, 14237, these fields tell us that the contig was best explained by *Faecalibacterium_prausnitzii*. The contig had four genes (evident from the `AAAA` synteny). *F. prausnitzii* had a minimum score over these genes of 0.983 (much greater than the threshold of 0.5), and its average score was similarly high at 0.989. We are very confident that this contig represents a portion of the *F. prausnitzii* genome.
+In the case of the first contig, 14237, these fields tell us that the contig was best explained by *Faecalibacterium prausnitzii*. The contig had four genes (evident from the `AAAA` synteny). *F. prausnitzii* had a minimum score over these genes of 0.983 (much greater than the threshold of 0.5), and its average score was similarly high at 0.989. We are very confident that this contig represents a portion of the *F. prausnitzii* genome.
 
 Answer the following questions about the one-species contigs by using shell commands, visual inspection, or internet research:
 
 ***
+* **Are the species present reasonable for a human gut sample?**
 * **Which species contributed the most contigs to the metagenomic assembly?**
 * **Which assignment was WAAFLE least confident about?**
-* **Why would WAAFLE favor a weak one-species explanation over a strong two-species (LGT) explanation?**
-* **Are the species present reasonable for a human gut sample?**
-* **When WAAFLE fails to find a one- or two-species explanation, it repeats its search at the next highest-level clades, looking for (e.g.) one-genus vs. two-genera explanations. Are there any instances of this behavior in the "one species" output?**
+***
+
+When WAAFLE fails to find a one- or two-species explanation, it repeats its search at the next highest-level clades, looking for (e.g.) one-genus vs. two-genera explanations.
+
+***
+* **Are there any instances of this behavior in the `no_lgt` output?**
 ***
 
 ### Examining two-clade (putative LGT) contigs
 
-You've waited long enough: let's examine some putative LGTs in the `demo_contigs.lgt.tsv` file. We'll again focus on a subset of the output columns:
+Now for exciting part: examining the putative LGTs in the `demo_contigs.lgt.tsv` file. We'll again focus on a subset of the output columns:
 
 ```
 $ cut -f1,4-10 demo_contigs.no_lgt.tsv
@@ -235,11 +249,11 @@ CONTIG_NAME  MIN_MAX_SCORE  AVG_MAX_SCORE  SYNTENY       DIRECTION  CLADE_A     
 12571        0.856          0.965          AABAAAA       B>A        s__Ruminococcus_bromii      s__Faecalibacterium_prausnitzii  f__Ruminococcaceae
 ```
 
-In the case of the first contig, 12571, these fields tell us that the contig was best explained by a putative LGT between *Ruminococcus bromii* and *Faecalibacterium_prausnitzii* -- two species that are related at the family level [according to the lowest common ancestor (LCA) field]. The synteny pattern `AABAAAA` suggests that a single *F. prausnitzii* gene (`B`) inserted into the *R. bromii* genome.
+In the case of the first contig, 12571, these fields tell us that the contig was best explained by a putative LGT between *Ruminococcus bromii* and *Faecalibacterium prausnitzii*: two species that are related at the family level [according to the lowest common ancestor (LCA) field]. The synteny pattern `AABAAAA` suggests that a single *F. prausnitzii* gene (`B`) inserted into the *R. bromii* genome.
 
 The min-max score entry indicates that, across the seven loci of this contig, one of these species always scored at least 0.856 (this exceeded the default k~2~ value of 0.8, allowing the LGT to be called).
 
-Add column 16 to the `cut` command above to inspect the functions of these genes:
+Add column 16 to the `cut` command above to inspect the annotations of these genes:
 
 ```
 ANNOTATIONS:UNIPROT
@@ -259,10 +273,9 @@ Answer the following questions about the two-species contigs by using shell comm
 Challenge questions:
 
 ***
-* **Which species is the most frequent LGT donor? Most common LGT recipient?**
-* **Do any species appear as LGT donors but never as recipients? Are these species also absent among the No-LGT contigs?**
-* **How many genes occur in LGT contigs? How does this compare to the number of genes in no-LGT contigs?**
-* **Assuming that an average gene is 1 kb long, what is your estimate for the number of LGT events per megabase of microbial genome in this sample?**
+* **Which species is the most frequent LGT donor?**
+* **Do any species appear as LGT donors but never as recipients?**
+* **How many LGT events occurred per 1,000 assembled genes?**
 ***
 
 ## Extension A: Working with Prodigal gene calls
