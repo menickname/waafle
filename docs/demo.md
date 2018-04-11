@@ -40,7 +40,13 @@ $ wget https://bitbucket.org/biobakery/waafle/get/default.zip
 $ unzip default.zip
 ```
 
-In either case, `cd` into the resulting directory (called `waafle` or `biobakery-waafle`). This folder contains the WAAFLE code and a `demo/` folder containing files for this demo. The commands below assume you are running the scripts from the `demo/` folder. (Use `cd` to enter `demo/`.)
+This will have created a directory (called `waafle/` or `biobakery-waafle/`) containing the WAAFLE code and demo materials. In order to run WAAFLE, add your current folder (the one containing `waafle/`) to the `PYTHONPATH`:
+
+```
+$ export PYTHONPATH=$PYTHONPATH:$(pwd)
+```
+
+After doing this, use `cd` to enter the `waafle/` folder, and then the `demo/` subfolder. The commands below assume you are running the demo from the `demo/` subfolder.
 
 ## Demo introduction
 
