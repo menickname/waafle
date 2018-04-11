@@ -253,14 +253,14 @@ def get_args( ):
         type=int,
         default=None,
         metavar="<1-N>",
-        help="required minimum leaf count supporting each LGT clade\n[default: off]",
+        help="required minimum leaf count supporting each LGT clade (or just recipient if known)\n[default: off]",
         )
     g.add_argument(
         "--sister-penalty",
         type=float,
         default=None,
         metavar="<0.0-1.0>",
-        help="allowed prevalence of missing genes in sisters of LGT clades\n[default: off]",
+        help="allowed prevalence of missing genes in sisters of LGT clades (or just recipient if known)\n[default: off]",
         )
 
     # params related to hit-gene merger
@@ -686,7 +686,9 @@ def check_clade_genes( option, args ):
         option.ok = False
 
 def check_clade_leaves( option, taxonomy, args ):
-    test = min( [taxonomy.get_leaf_count( clade ) for clade in [option.clade1, option.clade2]] )
+    # only apply to recipient if known
+    to_check = [option.recip] if option.recip is not None else [option.clade1, option.clade2]
+    test = min( [taxonomy.get_leaf_count( clade ) for clade in to_check] )
     if test < args.clade_leaves:
         option.ok = False
 
@@ -710,7 +712,9 @@ def check_sister_penalty( option, taxonomy, args ):
             hits /= float( len( sisters[char] ) )
         penalties.setdefault( char, [] ).append( hits )
     penalties = {char:np.mean( values ) for char, values in penalties.items( )}
-    test = max( penalties.values( ) )
+    # only penalize donor (B) loci if recipient known
+    to_check = "B" if option.recip is not None else "AB"
+    test = max( [penalties.get( char, 0 ) for char in to_check] )
     if test > args.sister_penalty:
         option.ok = False
 
