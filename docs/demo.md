@@ -109,12 +109,12 @@ Answer the following questions about the BLAST output by using shell commands or
 
 ***
 * **Which contig received the most BLAST hits?**
-* **Did any contigs receive hits to more than on species?**
+* **Did any contigs receive hits to more than one species?**
 ***
 
 ## Step 2. Call genes with waafle_genecaller.
 
-In order to classify the contigs, WAAFLE compares the BLAST hits generated above to a set of predicted protein-codi loci within the contigs, as defined by a [GFF file](https://useast.ensembl.org/info/website/upload/gff.html). WAAFLE includes a utility to call genes within contigs based on the BLAST output itself by clustering the start and stop coordinates of hits along the length of the contig.
+In order to classify the contigs, WAAFLE compares the BLAST hits generated above to a set of predicted protein-coding loci within the contigs, as defined by a [GFF file](https://useast.ensembl.org/info/website/upload/gff.html). WAAFLE includes a utility to call genes within contigs based on the BLAST output itself by clustering the start and stop coordinates of hits along the length of the contig.
 
 ```
 $ ../waafle_genecaller.py --help
