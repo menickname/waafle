@@ -200,7 +200,7 @@ This produces three output files:
 Most contigs are assigned to the `no_lgt` bin. Let's inspect a subset of the fields from this file with `cut` and `less`:
 
 ```
-$ cut -f1,4-7 demo_contigs.no_lgt.tsv
+$ cut -f1,4-7 demo_contigs.no_lgt.tsv | less
 ```
 
 Which yields:
@@ -218,14 +218,14 @@ CONTIG_NAME  MIN_SCORE  AVG_SCORE  SYNTENY    CLADE
 14528        0.901      0.917      AAAA       s__Collinsella_aerofaciens
 ```
 
-In the case of the first contig, 14237, these fields tell us that the contig was best explained by *Faecalibacterium prausnitzii*. The contig had four genes (evident from the `AAAA` synteny). *F. prausnitzii* had a minimum score over these genes of 0.983 (much greater than the threshold of 0.5), and its average score was similarly high at 0.989. We are very confident that this contig represents a portion of the *F. prausnitzii* genome.
+In the case of the first contig, 14237, these fields tell us that the contig was best explained by *Faecalibacterium prausnitzii*. The contig had four genes (evident from the `AAAA` synteny). *F. prausnitzii* had a minimum score over these genes of 0.983 (much greater than the threshold of 0.5), and its average score was similarly high at 0.989. We are very confident that this contig represents a fragment of *F. prausnitzii* genome.
 
 Answer the following questions about the one-species contigs by using shell commands, visual inspection, or internet research:
 
 ***
-* **Are the species present reasonable for a human gut sample?**
+* **Are the species detected reasonable for a human gut sample?**
 * **Which species contributed the most contigs to the metagenomic assembly?**
-* **Which assignment was WAAFLE least confident about?**
+* **Which taxonomic assignment was WAAFLE least confident about?**
 ***
 
 When WAAFLE fails to find a one- or two-species explanation, it repeats its search at the next highest-level clades, looking for (e.g.) one-genus vs. two-genera explanations.
@@ -260,13 +260,13 @@ ANNOTATIONS:UNIPROT
 R5E4K6|D4L7I2|D4JXM0|D4L7I1|D4L7I0|None|D4L7H8
 ```
 
-By default, WAAFLE assigns the annotation of the best BLAST hit at each locus. Here, the best hit to the sixth locus (`|`-delimitted) was not annotated in UniProt (and receives a `None` annotation).
+By default, WAAFLE assigns the annotation of the best BLAST hit at each locus. Here, the best hit to the sixth `|`-delimitted was not annotated in UniProt (it receives a `None` annotation).
 
 Answer the following questions about the two-species contigs by using shell commands, visual inspection, or internet research:
 
 ***
 * **What is the function of the LGT'ed gene in the example above?**
-* **What is the most "remote" LGT event (highest-level LCA)?**
+* **What is the most remote LGT event (i.e. the event with the highest-level LCA)?**
 * **Are there any LGT contigs where the donor and recipient cannot be determined confidently?**
 ***
 
@@ -295,7 +295,7 @@ $ ./prodigal.linux \
 
 Repeat **Step 3** above using the alternate GFF file and adding the argument `--basename demo_contigs.prodigal` to the `waafle_orgscorer` call (this will prevent overwriting the original outputs). Inspect the outputs.
 
-You'll notice that the synteny strings now contain a `~` character. This corresponds to a locus that never received a "good" hit to any species (i.e. with homology score > k~1~). By default, `waafle_orgscorer` will ignore such loci. You can change this behavior with the `--weak-loci` flag.
+You'll notice that the synteny strings now contain a `~` character. This corresponds to a locus that never received a "good" hit to any species (i.e. with homology score >k~1~). By default, `waafle_orgscorer` will ignore such loci. You can change this behavior with the `--weak-loci` flag.
 
 ***
 * **How do the results change using the Prodigal GFF file?**
