@@ -245,7 +245,7 @@ When WAAFLE fails to find a one- or two-species explanation, it repeats its sear
 Now for exciting part: examining the putative LGTs in the `demo_contigs.lgt.tsv` file. We'll again focus on a subset of the output columns:
 
 ```
-$ cut -f1,4-10 demo_contigs.no_lgt.tsv
+$ cut -f1,4-10 demo_contigs.lgt.tsv
 ```
 
 Which yields:
