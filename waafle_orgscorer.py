@@ -242,6 +242,13 @@ def get_args( ):
         help="allowed fraction of ambiguous (A OR B) gene length in a putative A+B contig\n[default: 0.1]",
         )
     g.add_argument(
+        "--sister-penalty",
+        type=float,
+        default=0.0,
+        metavar="<0.0-1.0>",
+        help="allowed mean prevalence of missing genes in sisters of LGT clades (or just recipient if known)\n[default: 0.0]",
+        )
+    g.add_argument(
         "--clade-genes",
         type=int,
         default=None,
@@ -254,13 +261,6 @@ def get_args( ):
         default=None,
         metavar="<1-N>",
         help="required minimum leaf count supporting each LGT clade (or just recipient if known)\n[default: off]",
-        )
-    g.add_argument(
-        "--sister-penalty",
-        type=float,
-        default=None,
-        metavar="<0.0-1.0>",
-        help="allowed prevalence of missing genes in sisters of LGT clades (or just recipient if known)\n[default: off]",
         )
 
     # params related to hit-gene merger
