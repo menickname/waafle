@@ -20,33 +20,11 @@ In Example 2, no single species can explain all of the loci (the minimum score f
 
 Note that in Example 2, if species **C** had hits to the 2nd and 5th loci that exceeded k~1~ (as in Example 1), WAAFLE's algorithm would conservatively favor the weaker one-species explanation for the contig rather than invoking a two-species (LGT-based) explanation.
 
-## Software requirements
-
-* `Python 2.7+` with `numpy`
-* `blastn`
-
 ## Getting started with WAAFLE
 
-If you have mercurial (`hg`) available, you can clone the WAAFLE repository to get started:
+You can test if WAAFLE is available in your computing environment by running `waafle_search.py -h`, which should return a help menu. If it doesn't, then please consult the [WAAFLE manual](https://bitbucket.org/biobakery/waafle/src/default/README.md) for help installing and setting up WAAFLE.
 
-```
-$ hg clone https://bitbucket.org/biobakery/waafle
-```
-
-Alternatively, you can download and extract the WAAFLE project:
-
-```
-$ wget https://bitbucket.org/biobakery/waafle/get/default.zip
-$ unzip default.zip
-```
-
-This will have created a directory (called `waafle/` or `biobakery-waafle/`) containing the WAAFLE code and demo materials. In order to run WAAFLE, add your current folder (the one containing `waafle/`) to the `PYTHONPATH`:
-
-```
-$ export PYTHONPATH=$PYTHONPATH:$(pwd)
-```
-
-After doing this, use `cd` to enter the `waafle/` folder, and then the `demo/` subfolder. The commands below assume you are running the demo from the `demo/` subfolder.
+Assuming WAAFLE is available, use `cd` to enter the `waafle/` folder, and then the `demo/` subfolder. The commands below assume you are running the demo from the `demo/` subfolder.
 
 ## Demo introduction
 
@@ -75,13 +53,13 @@ Inspect the demo files with `less` or other shell commands to answer the followi
 The first step in the WAAFLE workflow is to search the input contigs against a WAAFLE-formatted pangenome database. See the options for the `waafle_search` program using the help command:
 
 ```
-$ ../waafle_search.py --help
+$ waafle_search.py --help
 ```
 
 The two critical parameters are the query (contigs) and database. Let's search the demo contigs against the demo database:
 
 ```
-$ ../waafle_search.py input/demo_contigs.fna input/demo_waafledb/demo_waafledb
+$ waafle_search.py input/demo_contigs.fna input/demo_waafledb/demo_waafledb
 ```
 
 The command will finish quickly as both the input and database are small. Note the following line from the BLAST command:
@@ -123,13 +101,13 @@ Answer the following questions about the BLAST output by using shell commands or
 In order to classify the contigs, WAAFLE compares the BLAST hits generated above to a set of predicted protein-coding loci within the contigs, as defined by a [GFF file](https://useast.ensembl.org/info/website/upload/gff.html). WAAFLE includes a utility to call genes within contigs based on the BLAST output itself by clustering the start and stop coordinates of hits along the length of the contig.
 
 ```
-$ ../waafle_genecaller.py --help
+$ waafle_genecaller.py --help
 ```
 
 This utility requires a single input to run: the BLAST output file:
 
 ```
-$ ../waafle_search.py demo_contigs.blastout
+$ waafle_genecaller.py demo_contigs.blastout
 ```
 
 This produced a file in GFF format called `demo_contigs.gff`. Inspect its contents using the `less` command:
@@ -188,7 +166,7 @@ The two most important parameters are k~1~ and k~2~, as introduced in the algori
 Lets try a run of `waafle_orgscorer` with only the four required arguments, `contigs blastout gff taxonomy`:
 
 ```
-$ ../waafle_orgscorer.py \
+$ waafle_orgscorer.py \
 	input/demo_contigs.fna \
 	demo_contigs.blastout \
 	demo_contigs.gff \
