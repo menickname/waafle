@@ -44,7 +44,7 @@ Use the results of waafle_search to identify candidate gene
 loci in a set of contigs and output them as a GFF file for use
 in the next step. Users can optionally supply their own (independently-generated)
 GFF file.
-""".format( sys.argv[0] ) )
+""".format( os.path.split( sys.argv[0] )[1] ) )
 
 # ---------------------------------------------------------------
 # cli
@@ -96,7 +96,9 @@ def attach_shared_args( parser ):
         )
     parser.add_argument(
         "--stranded",
-        action="store_true",
+        choices=["on", "off"],
+        default="off",
+        metavar="<on/off>",
         help="only merge hits into hits/genes of the same strandedness\n[default: off]",
         )
 
@@ -212,7 +214,7 @@ def main( ):
         intervals = overlap_intervals( 
             intervals, 
             args.min_overlap, 
-            args.stranded, 
+            args.stranded == "on",
             )
         for start, stop, strand in intervals:
             gene_length = stop - start + 1

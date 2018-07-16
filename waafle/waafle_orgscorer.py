@@ -49,7 +49,7 @@ Merges blast hits into genes on contigs-of-interest. Uses corresponding
 taxonomy file, and the WAAFLE algorithm, to identify contigs that are
 best explained by a single clade vs. a pair of clades. The latter events
 correpond to putative LGTs.
-""".format( sys.argv[0] ) )
+""".format( os.path.split( sys.argv[0] )[1] ) )
 
 # ---------------------------------------------------------------
 # constants
@@ -173,12 +173,16 @@ def get_args( ):
         )
     g.add_argument(
         "--write-details",
-        action="store_true",
+        choices=["on", "off"],
+        default="off",
+        metavar="<on/off>",
         help="make an additional output file with per-gene clade scores\n[default: off]",
         )
     g.add_argument(
         "--quiet",
-        action="store_true",
+        choices=["on", "off"],
+        default="off",
+        metavar="<on/off>",
         help="don't show running progress\n[default: off]",
         )
 
@@ -231,7 +235,9 @@ def get_args( ):
     g = parser.add_argument_group( "post-detection LGT filters" )
     g.add_argument(
         "--allow-lca",
-        action="store_true",
+        choices=["on", "off"],
+        default="off",
+        metavar="<on/off>",
         help="when melding LGT clades, allow the LGT LCA to occur as a melded clade\n[default: off]",
         )
     g.add_argument(
@@ -243,10 +249,10 @@ def get_args( ):
         )
     g.add_argument(
         "--sister-penalty",
-        type=float,
-        default=0.0,
-        metavar="<0.0-1.0>",
-        help="allowed mean prevalence of missing genes in sisters of LGT clades (or just recipient if known)\n[default: 0.0]",
+        choices=["strict", "lenient", "off"],
+        default="strict",
+        metavar="<strict/lenient/off>",
+        help="penalize homologs of missing genes in sisters of LGT clades (or just recipient if known)\n[default: strict]",
         )
     g.add_argument(
         "--clade-genes",
@@ -268,15 +274,15 @@ def get_args( ):
     g.add_argument(
         "--weak-loci",
         choices=["ignore", "penalize", "assign-unknown"],
-        metavar="<ignore/penalize/assign-unknown>",
         default="ignore",
+        metavar="<ignore/penalize/assign-unknown>",
         help="method for handling loci that are never assigned to known clades\n[default: ignore]",
         )
     g.add_argument(
         "--transfer-annotations",
         choices=["lenient", "strict", "very-strict"],
-        metavar="<lenient/strict/very-strict>",
         default="strict",
+        metavar="<lenient/strict/very-strict>",
         help="stringency of gene annotation transfer to loci\n[default: strict]",
         )
     g.add_argument(
@@ -637,7 +643,7 @@ def meld_two( options, taxonomy, args ):
         best.tails1 = taxonomy.get_tails( clades1, lca1 )
         best.tails2 = taxonomy.get_tails( clades2, lca2 )
         # post-meld lca check
-        if not args.allow_lca:
+        if args.allow_lca == "off":
             new_clades = [best.clade1, best.clade2]
             new_lca = taxonomy.get_lca( *new_clades )
             if new_lca in new_clades:
@@ -661,7 +667,8 @@ def apply_lgt_checks( option, taxonomy, args ):
         check_clade_genes( option, args )
     if args.clade_leaves is not None:
         check_clade_leaves( option, taxonomy, args )
-    if args.sister_penalty is not None:
+    # note: different trigger
+    if args.sister_penalty != "off":
         check_sister_penalty( option, taxonomy, args )
 
 # ---------------------------------------------------------------
@@ -694,6 +701,8 @@ def check_clade_leaves( option, taxonomy, args ):
 
 def check_sister_penalty( option, taxonomy, args ):
     C = option.contig
+    # strict punishes sister homologs >k1; lenient punishes >k2 (happens less often)
+    my_threshold = {"lenient":C.max_threshold, "strict":C.min_threshold}[args.sister_penalty]
     clade1, clade2 = option.clade1, option.clade2
     sisters, penalties = {}, {}
     # note the unintuitive swap: a B locus is penalized by A's sisters
@@ -705,17 +714,17 @@ def check_sister_penalty( option, taxonomy, args ):
         hits = 0
         for clade in sisters[char]:
             if clade in C.gene_scores:
-                # this could arguably be min or max
-                if C.gene_scores[clade][i] >= C.min_threshold:
+                if C.gene_scores[clade][i] >= my_threshold:
                     hits += 1
         if len( sisters[char] ) > 0:
             hits /= float( len( sisters[char] ) )
         penalties.setdefault( char, [] ).append( hits )
+    # mean prevalence of sister homologs; we will count >0 as bad
     penalties = {char:np.mean( values ) for char, values in penalties.items( )}
     # only penalize donor (B) loci if recipient known
     to_check = "B" if option.recip is not None else "AB"
     test = max( [penalties.get( char, 0 ) for char in to_check] )
-    if test > args.sister_penalty:
+    if test > 0:
         option.ok = False
 
 # ---------------------------------------------------------------
@@ -924,7 +933,7 @@ def main( ):
 
     # prepare details file
     details = None
-    if args.write_details:
+    if args.write_details == "on":
         details = wu.try_open( os.path.join( 
                 args.outdir, args.basename + ".details.tsv.gz" ), "w" )
         # headers
@@ -940,7 +949,7 @@ def main( ):
             continue
         # this is a good contig
         C = contigs[contig_name]
-        if not args.quiet:
+        if args.quiet == "off":
             wu.say( "  #{:>7,} of {:>7,}".format( C.index, len( contigs ) ) )
         # attach hits to genes
         C.attach_hits( hits )

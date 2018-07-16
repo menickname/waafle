@@ -42,7 +42,7 @@ description = wu.describe( """
 
 This script executes a custom BLAST search of a set of contigs against 
 a WAAFLE-formatted database.
-""".format( sys.argv[0] ) )
+""".format( os.path.split( sys.argv[0] )[1] ) )
 
 # ---------------------------------------------------------------
 # cli
