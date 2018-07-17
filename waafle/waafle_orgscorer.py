@@ -43,13 +43,13 @@ from waafle.waafle_genecaller import attach_shared_args
 # ---------------------------------------------------------------
 
 description = wu.describe( """
-{}: Step 2 in the WAAFLE pipeline
+{SCRIPT}: Step 2 in the WAAFLE pipeline
 
 Merges blast hits into genes on contigs-of-interest. Uses corresponding
 taxonomy file, and the WAAFLE algorithm, to identify contigs that are
 best explained by a single clade vs. a pair of clades. The latter events
 correpond to putative LGTs.
-""".format( os.path.split( sys.argv[0] )[1] ) )
+""" )
 
 # ---------------------------------------------------------------
 # constants
@@ -173,16 +173,12 @@ def get_args( ):
         )
     g.add_argument(
         "--write-details",
-        choices=["on", "off"],
-        default="off",
-        metavar="<on/off>",
+        action="store_true",
         help="make an additional output file with per-gene clade scores\n[default: off]",
         )
     g.add_argument(
         "--quiet",
-        choices=["on", "off"],
-        default="off",
-        metavar="<on/off>",
+        action="store_true",
         help="don't show running progress\n[default: off]",
         )
 
@@ -235,9 +231,7 @@ def get_args( ):
     g = parser.add_argument_group( "post-detection LGT filters" )
     g.add_argument(
         "--allow-lca",
-        choices=["on", "off"],
-        default="off",
-        metavar="<on/off>",
+        action="store_true",
         help="when melding LGT clades, allow the LGT LCA to occur as a melded clade\n[default: off]",
         )
     g.add_argument(
@@ -249,9 +243,9 @@ def get_args( ):
         )
     g.add_argument(
         "--sister-penalty",
-        choices=["strict", "lenient", "off"],
+        choices=["off", "lenient", "strict"],
         default="strict",
-        metavar="<strict/lenient/off>",
+        metavar="<off/lenient/strict>",
         help="penalize homologs of missing genes in sisters of LGT clades (or just recipient if known)\n[default: strict]",
         )
     g.add_argument(
@@ -643,7 +637,7 @@ def meld_two( options, taxonomy, args ):
         best.tails1 = taxonomy.get_tails( clades1, lca1 )
         best.tails2 = taxonomy.get_tails( clades2, lca2 )
         # post-meld lca check
-        if args.allow_lca == "off":
+        if not args.allow_lca:
             new_clades = [best.clade1, best.clade2]
             new_lca = taxonomy.get_lca( *new_clades )
             if new_lca in new_clades:
@@ -705,7 +699,7 @@ def check_sister_penalty( option, taxonomy, args ):
     my_threshold = {"lenient":C.max_threshold, "strict":C.min_threshold}[args.sister_penalty]
     clade1, clade2 = option.clade1, option.clade2
     sisters, penalties = {}, {}
-    # note the unintuitive swap: a B locus is penalized by A's sisters
+    # note the unintuitive swap: a B locus is penalized by A's sisters (but not A itself)
     sisters["B"] = taxonomy.get_sisters( clade1 ) - {clade2}
     sisters["A"] = taxonomy.get_sisters( clade2 ) - {clade1}
     for i, char in enumerate( option.synteny ):
@@ -933,7 +927,7 @@ def main( ):
 
     # prepare details file
     details = None
-    if args.write_details == "on":
+    if args.write_details:
         details = wu.try_open( os.path.join( 
                 args.outdir, args.basename + ".details.tsv.gz" ), "w" )
         # headers
@@ -949,7 +943,7 @@ def main( ):
             continue
         # this is a good contig
         C = contigs[contig_name]
-        if args.quiet == "off":
+        if not args.quiet:
             wu.say( "  #{:>7,} of {:>7,}".format( C.index, len( contigs ) ) )
         # attach hits to genes
         C.attach_hits( hits )

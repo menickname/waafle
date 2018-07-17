@@ -38,11 +38,11 @@ from waafle import utils as wu
 # ---------------------------------------------------------------
 
 description = wu.describe( """
-{}: Step 1 in the WAAFLE pipeline
+{SCRIPT}: Step 1 in the WAAFLE pipeline
 
 This script executes a custom BLAST search of a set of contigs against 
 a WAAFLE-formatted database.
-""".format( os.path.split( sys.argv[0] )[1] ) )
+""" )
 
 # ---------------------------------------------------------------
 # cli

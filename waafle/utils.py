@@ -70,10 +70,12 @@ def try_open( path, *args ):
     return fh
 
 def describe( text, width=80, margin=2 ):
+    margin = " " * margin
     # remove flanking whitespace
     text = text.strip( )
+    # insert script name
+    text = text.format( SCRIPT=os.path.split( sys.argv[0] )[1] )
     lines = text.split( "\n" )
-    margin = " " * margin
     # title
     rule = "=" * width
     newlines = [rule, margin + lines[0], rule, "\n"]
