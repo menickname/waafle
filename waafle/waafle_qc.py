@@ -77,6 +77,7 @@ c_formats["junctions"] = """
 contig
 gene1
 gene2
+gap
 hits_junction
 hits_ok
 coverage_gene1
@@ -317,6 +318,7 @@ def find_hit_loci( mate1=None, mate2=None, loci=None, args=None ):
         for read in [mate1, mate2]:
             b1, b2 = read.sstart, read.send
             overlap = wu.calc_overlap( a1, a2, b1, b2, normalize=False )
+            #print( L.code, read.qseqid, a1, a2, b1, b2, overlap )
             if overlap >= args.min_overlap_sites:
                 hits.add( L.code )
     return hits
@@ -334,8 +336,11 @@ def evaluate_contig( loci=None, coverage=None, gene_hits=None, args=None ):
         L2 = loci[i+1]
         rowdict["gene1"] = code1 = L1.code
         rowdict["gene2"] = code2 = L2.code
+        rowdict["gap"]   = L2.start - L1.end - 1
+        # this ensures that lookup matches non-redundant storage
+        pair_key = tuple( sorted( [code1, code2] ) )
         # check hits
-        rowdict["hits_junction"] = my_hits = gene_hits.get( (code1, code2), 0 )
+        rowdict["hits_junction"] = my_hits = gene_hits.get( pair_key, 0 )
         rowdict["hits_ok"] = hits_ok = my_hits >= args.min_junction_hits
         # check coverage (note: base-0 start and pythonic end)
         rowdict["coverage_gene1"] = my_cov1 = np.mean( coverage[L1.start-1:L1.end] )
@@ -479,8 +484,7 @@ def main( ):
         # update pair counts
         for code1 in hits:
             for code2 in hits:
-                if code1 < code2:
-                    inner[(code1, code2)] += 1
+                inner[(code1, code2)] += 1
 
     # detailed output?
     if args.write_detailed_output:
