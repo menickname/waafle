@@ -25,8 +25,9 @@ To use WAAFLE, you'll need to add the src folder `waafle/waafle` to your `$PATH`
 ## Software requirements
 
 * Python 2.7+
-* Python numpy (*version TBD*)
-* NCBI BLAST (*version TBD*)
+* Python `numpy` (*version TBD*)
+* NCBI `blastn` (*version TBD*)
+* `bowtie2` (for `waafle_qc`; *version TBD*) 
 
 ## Database requirements
 
@@ -360,3 +361,134 @@ The fields in detail:
 * **`LOCI`**: Ccordinates of the loci (genes) that were considered for this contig in format `START:STOP:STRAND`.
 
 * **`ANNOTATIONS:UNIPROT`**: indicates that UniProt annotations were provided for the genes in the input sequence database (in format `UNIPROT=IDENTIFIER`). The best-scoring UniProt annotation for each gene is given here. (Additional annotations would appear as additional, similarly-formatted columns in the output.)
+
+## Filtering questionable contigs
+
+The WAAFLE workflow described above has been optimized to distinguish LGTs from other biological events (e.g. gene deletion). However, it cannot intrinsically identify spurious LGTs resulting from misassembly (e.g. chimerism). For this, we provide a separate method, `waafle_qc`.
+
+`waafle_qc` maps reads to contigs to evaluate gene-gene junctions (involved in LGTs or otherwise). `waafle_qc` considers a contig to be "OK" if all of its junctions are supported. A junction is supported if one of the followed two conditions to be true:
+
+1. Multiple sequencing fragments (paired reads) engulf the junction. This criterion is most applicable to junctions that are smaller than typical sequencing insert sizes (0-200 nts).
+
+2. The junction is well covered relative to its flanking genes. This criterion is most applicable to longer junctions (>200 nts).
+
+A sample call to `waafle_qc` might look like:
+
+```
+$ waafle_qc.py \
+  contigs.fna \
+  contigs.gff \
+  --reads1 contigs_reads.1.fq \
+  --reads2 contigs_reads.2.fq \
+```
+
+With this call, `waafle_qc` will use [bowtie2](http://bowtie-bio.sourceforge.net/bowtie2/index.shtml) to index the contigs and then align the input reads (pairwise) against the index to produce a SAM file. (`waafle_qc` can also interpret a mapping from an existing SAM file.) The alignment results are then interpreted to score junctions and contigs, producing an output file for each.
+
+A sample report for an individual junction looks like:
+
+```
+CONTIG             contig_k119_11579 
+GENE1              4975:6210:-          
+GENE2              6279:6896:+          
+GAP                68                   
+HITS_JUNCTION      18                   
+HITS_OK            True                 
+COVERAGE_GENE1     32.4256              
+COVERAGE_GENE2     33.3706              
+COVERAGE_JUNCTION  43.0000              
+COVERAGE_RATIO     1.3071               
+COVERAGE_OK        True                 
+ACCEPTABLE         True
+```
+
+This junction was supported by 18 sequencing fragments (`HITS_JUNCTION`) and was similar in coverage to its flanking genes (`COVERAGE_RATIO`), thus passing both of the `waafle_qc` filters outlined above.
+
+A sample report for a pair of contigs (one passing, one failing) looks like:
+
+```
+CONTIG             contig_k119_10097  contig_k119_10099 
+SUMMARY            OK                    FAILED               
+LENGTH             2176                  4154                 
+LOCI               3                     5                    
+FAILING_JUNCTIONS  0                     1                    
+FAILURE_RATE       0.00                  0.25
+```
+
+`waafle_qc` can be tuned to filter junctions more or less stringently, as well as to filter contigs based on other properties (e.g. length). Consult the `--help` menu for a full list of options:
+
+```
+usage: waafle_qc.py [-h] [--reads1 <path>] [--reads2 <path>] [--sam <path>]
+                    [--tmpdir <path>] [--outdir <path>] [--basename <str>]
+                    [--write-detailed-output] [--min-overlap-sites <int>]
+                    [--min-junction-hits <int>] [--min-junction-ratio <float>]
+                    [--min-contig-genes <int>] [--min-contig-length <int>]
+                    [--max-contig-failures <float>] [--bowtie2-build <path>]
+                    [--bowtie2 <path>] [--threads <int>]
+                    contigs gff
+
+================================================================================
+  waafle_qc.py: Performs coverage-level quality control on contigs
+================================================================================
+
+  This script maps reads to contigs (or analyzes an existing mapping) to
+  identify contigs whose junctions aren't supported by reads. A short junction
+  is supported if mate-pairs engulf the junction. A long junction (i.e. too long
+  to be engulfed by a mate-pair) is supported if its coverage is "reasonably
+  similar" to the flanking genes' coverages (e.g. at least half their mean).
+  This script will also filter out contigs that are too short or which contain
+  too few genes.
+
+================================================================================
+
+optional arguments:
+  -h, --help            show this help message and exit
+
+required inputs:
+  contigs               contigs file (fasta format)
+  gff                   GFF file for provided contigs
+
+provide paired reads or a .sam file:
+  --reads1 <path>       sequencing reads (mate-1)
+  --reads2 <path>       sequencing reads (mate-2)
+  --sam <path>          sam file (from existing alignment)
+
+output options:
+  --tmpdir <path>       where to place temp outputs
+                        [default: ./]
+  --outdir <path>       where to place main outputs
+                        [default: ./]
+  --basename <str>      basename for output files
+                        [default: <derived from input>]
+  --write-detailed-output
+                        write out coverage values for all sites and all junctions
+                        [default: off]
+
+filtering parameters:
+  --min-overlap-sites <int>
+                        minimum nucleotide overlap for counting a read-gene hit
+                        [default: 25]
+  --min-junction-hits <int>
+                        minimum read-hits to 'ok' a junction
+                        [default: 2]
+  --min-junction-ratio <float>
+                        minimum coverage (relative to flanking genes) to 'ok' a junction
+                        [default: 0.5]
+  --min-contig-genes <int>
+                        minimum gene count for the contig
+                        [default: 2]
+  --min-contig-length <int>
+                        minimum length for the contig
+                        [default: 500]
+  --max-contig-failures <float>
+                        allowed fraction of failing junctions
+                        [default: 0]
+
+bowtie2 options:
+  --bowtie2-build <path>
+                        path to bowtie2-build
+                        [default: $PATH]
+  --bowtie2 <path>      path to bowtie2
+                        [default: $PATH]
+  --threads <int>       number of cpu cores to use in bowtie2 alignment
+                        [default: 1]
+``` 
