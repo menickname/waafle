@@ -337,7 +337,7 @@ def evaluate_contig( loci=None, coverage=None, gene_hits=None, args=None ):
         rowdict["gene1"] = code1 = L1.code
         rowdict["gene2"] = code2 = L2.code
         rowdict["gap"]   = L2.start - L1.end - 1
-        # this ensures that lookup matches non-redundant storage
+        # this ensures that lookup matches asymmetric storage
         pair_key = tuple( sorted( [code1, code2] ) )
         # check hits
         rowdict["hits_junction"] = my_hits = gene_hits.get( pair_key, 0 )
@@ -482,9 +482,11 @@ def main( ):
         for code in hits:
             inner[(code, code)] += 1
         # update pair counts
+        # !!!! asymmetric storage requires careful lookup !!!!
         for code1 in hits:
             for code2 in hits:
-                inner[(code1, code2)] += 1
+                if code1 < code2:
+                    inner[(code1, code2)] += 1
 
     # detailed output?
     if args.write_detailed_output:
