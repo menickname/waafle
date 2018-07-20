@@ -35,20 +35,20 @@ from collections import Counter
 
 import numpy as np
 
-from waafle import utils2 as wu
+from waafle import dev_utils as wu
 
 # ---------------------------------------------------------------
 # description
 # ---------------------------------------------------------------
 
 description = wu.describe( """
-{SCRIPT}: Filter out low-quality contigs
+{SCRIPT}: Performs coverage-level quality control on contigs
 
 This script maps reads to contigs (or analyzes an existing mapping)
 to identify contigs whose junctions aren't supported by reads. A short
-junction is supported if N+ read-pairs engulf the junction. A long junction
-(i.e. too long to be engulfed by a read-pair) is supported if its coverage
-is "reasonably similar" to the flanking genes' coverages (i.e. at least half
+junction is supported if mate-pairs engulf the junction. A long junction
+(i.e. too long to be engulfed by a mate-pair) is supported if its coverage
+is "reasonably similar" to the flanking genes' coverages (e.g. at least half
 their mean). This script will also filter out contigs that are too short
 or which contain too few genes.
 """ )
@@ -73,7 +73,7 @@ gene2
 hits
 """
 
-c_formats["junction_report"] = """
+c_formats["junctions"] = """
 contig
 gene1
 gene2
@@ -87,7 +87,7 @@ coverage_ok
 acceptable
 """
 
-c_formats["contig_report"] = """
+c_formats["contig_qc"] = """
 contig
 summary
 length
@@ -104,112 +104,127 @@ for name, items in c_formats.items( ):
 # ---------------------------------------------------------------
 
 def get_args( ):
+
     parser = argparse.ArgumentParser(
         description=description, 
         formatter_class=argparse.RawTextHelpFormatter,
         )
-    parser.add_argument( 
+
+    g = parser.add_argument_group( "required inputs" )
+    g.add_argument( 
         "contigs",
         help="contigs file (fasta format)",
         )
-    parser.add_argument( 
+    g.add_argument( 
         "gff",
         help="GFF file for provided contigs",
         )
-    parser.add_argument( 
+
+    g = parser.add_argument_group( "provide reads or a sam file" )
+    g.add_argument( 
         "--reads1",
+        metavar="<path>",
         help="1st-end sequencing reads",
         )
-    parser.add_argument( 
+    g.add_argument( 
         "--reads2",
+        metavar="<path>",
         help="2nd-end sequencing reads",
         )
-    parser.add_argument( 
+    g.add_argument( 
         "--sam",
+        metavar="<path>",
         help="sam file (if alignment already exists)",
         )
-    parser.add_argument( 
+
+    g = parser.add_argument_group( "output options" )
+    g.add_argument( 
+        "--tmpdir",
+        default=".",
+        metavar="<path>",
+        help="where to place temp outputs\n[default: ./]",
+        )
+    g.add_argument( 
+        "--outdir",
+        default=".",
+        metavar="<path>",
+        help="where to place main outputs\n[default: ./]",
+        )
+    g.add_argument( 
+        "--basename",
+        metavar="<str>",
+        help="basename for output files\n[default: <derived from input>]",
+        )
+    g.add_argument( 
+        "--write-detailed-output",
+        action="store_true",
+        help="write out the numbers that go into junction evaluation\n[default: off]",
+        )
+
+    g = parser.add_argument_group( "filtering parameters" )
+    g.add_argument( 
+        "--min-overlap-sites",
+        type=int,
+        default=25,
+        metavar="<int>",
+        help="minimum nucleotide overlap for counting a read-gene hit\n[default: 25]",
+        )
+    g.add_argument( 
+        "--min-junction-hits",
+        type=int,
+        default=2,
+        metavar="<int>",
+        help="minimum hits to 'ok' a junction\n[default: 2]",
+        )
+    g.add_argument( 
+        "--min-junction-ratio",
+        type=int,
+        default=0.5,
+        metavar="<float>",
+        help="minimum relative coverage to 'ok' a junction\n[default: 0.5]",
+        )
+    g.add_argument( 
+        "--min-contig-genes",
+        type=int,
+        default=2,
+        metavar="<int>",
+        help="minimum gene count for the contig\n[default: 2]",
+        )
+    g.add_argument( 
+        "--min-contig-length",
+        type=int,
+        default=500,
+        metavar="<int>",
+        help="minimum length for the contig\n[default: 500]",
+        )
+    g.add_argument( 
+        "--max-contig-failures",
+        type=float,
+        default=0,
+        metavar="<float>",
+        help="allowed fraction of failing junctions\n[default: 0]",
+        )
+
+    g = parser.add_argument_group( "bowtie2 options" )
+    g.add_argument( 
         "--bowtie2-build",
         default="bowtie2-build",
         metavar="<path>",
         help="path to bowtie2-build\n[default: $PATH]",
         )
-    parser.add_argument( 
+    g.add_argument( 
         "--bowtie2",
         default="bowtie2",
         metavar="<path>",
         help="path to bowtie2\n[default: $PATH]",
         )
-    parser.add_argument( 
+    g.add_argument( 
         "--threads",
         default="1",
         metavar="<int>",
-        help="number of cpu cores to use\n[default: 1]",
+        help="number of cpu cores to use in bowtie2 alignment\n[default: 1]",
         )
-    parser.add_argument( 
-        "--tmpdir",
-        default=".",
-        metavar="<path>",
-        help="where to place temp outputs\n[default: <.>]",
-        )
-    parser.add_argument( 
-        "--outdir",
-        default=".",
-        metavar="<path>",
-        help="where to place main outputs\n[default: <.>]",
-        )
-    parser.add_argument( 
-        "--basename",
-        metavar="<str>",
-        help="basename for output files\n[default: <derived from input>]",
-        )
-    parser.add_argument( 
-        "--read-gene-overlap",
-        type=int,
-        default=40,
-        metavar="<1-N>",
-        help="critical nucleotides for counting a read-gene overlap\n[default: <40>]",
-        )
-    parser.add_argument( 
-        "--junction-fragments",
-        type=int,
-        default=2,
-        metavar="<1-N>",
-        help="critical fragments to 'ok' a junction\n[default: <2>]",
-        )
-    parser.add_argument( 
-        "--junction-coverage-ratio",
-        type=int,
-        default=0.5,
-        metavar="<float>",
-        help="critical relative coverage to 'ok' a junction\n[default: <0.5>]",
-        )
-    parser.add_argument( 
-        "--min-genes",
-        type=int,
-        default=2,
-        metavar="<int>",
-        help="minimum gene count for the contig\n[default: <2>]",
-        )
-    parser.add_argument( 
-        "--min-length",
-        type=int,
-        default=500,
-        metavar="<int>",
-        help="minimum length for the contig\n[default: <500>]",
-        )
-    parser.add_argument( 
-        "--allowed-failure-rate",
-        type=float,
-        default=0,
-        metavar="<float>",
-        help="allowed fraction of failing junctions\n[default: <0>]",
-        )
-    parser.add_argument( 
-        "--write-detailed-output",
-        action="store_true",
-        help="write out the numbers that go into junction evaluation\n[default: off]",
-        )
+
     args = parser.parse_args( )
     return args
 
@@ -225,7 +240,7 @@ def bowtie2_build( p_bowtie2_build=None, p_contigs=None, p_index=None ):
         }
     if os.path.exists( p_index + ".1.bt2" ):
         wu.say( "The index <{INDEX}> already exists.".format( **fields ) )
-        wu.say( "(Delete to force rebuild.)" )
+        wu.say( "(Move/delete to force rebuild.)" )
     else:
         wu.say( "Indexing <{CONTIGS}> to <{INDEX}>.".format( **fields ) )
         command = [
@@ -267,89 +282,42 @@ def bowtie2_align( p_bowtie2=None, p_reads1=None, p_reads2=None,
     return None
 
 # ---------------------------------------------------------------
-# utils for parsing sam output
+# utils for parsing SAM/GFF comparison
 # ---------------------------------------------------------------
 
-"""
-@HD  VN:1.0                SO:unsorted
-@SQ  SN:SRS011061_k119_3   LN:961
-@SQ  SN:SRS011061_k119_5   LN:837
-@SQ  SN:SRS011061_k119_11  LN:502
-...
-61NLYAAXX100508:5:100:10002:9010   83   SRS011061_k119_37319  25069  42  101M      =  25052  -118
-61NLYAAXX100508:5:100:10002:9010   163  SRS011061_k119_37319  25052  42  46M1I43M  =  25069  118
-61NLYAAXX100508:5:100:10002:9075   83   SRS011061_k119_14610  17113  42  101M      =  16942  -272
-61NLYAAXX100508:5:100:10002:9075   163  SRS011061_k119_14610  16942  42  46M1I43M  =  17113  272
-61NLYAAXX100508:5:100:10003:17250  77   *                     0      0   *         *  0      0
-61NLYAAXX100508:5:100:10003:17250  141  *                     0      0   *         *  0      0
-61NLYAAXX100508:5:100:10003:3146   99   SRS011061_k119_83764  304    42  101M      =  366    152
-61NLYAAXX100508:5:100:10003:3146   147  SRS011061_k119_83764  366    42  90M       =  304    -152
-"""
-
-def cigar_length( cigar ):
-    counts = [int( c ) for c in re.split( "[A-Z]+", cigar ) if c != ""]
-    sigils = [s        for s in re.split( "[0-9]+", cigar ) if s != ""]
-    # ignore read-only bands
-    return sum( [c for c, s in zip( counts, sigils ) if s in "DHMNSX="] )
-
-def good_pair( read1, read2 ):
-    ret = True
-    # mate pair
-    if read1[0] != read2[0]:
-        ret = False
-    # aligned
-    if read1[2] == "*":
-        ret = False
-    # concordantly
-    if read1[2] != read2[2]:
-        ret = False
-    return ret
-
-def process_pair( read1, read2 ):
-    ret = None
-    if good_pair( read1, read2 ):
-        # read1 span
-        start1 = int( read1[3] )
-        end1   = start1 + cigar_length( read1[5] ) - 1
-        span1  = [start1, end1]
-        # read2 span
-        start2 = int( read2[3] )
-        end2   = start2 + cigar_length( read2[5] ) - 1
-        span2  = [start2, end2]
-        # format: read name, target, left span, right span
-        span1, span2 = sorted( [span1, span2] )
-        ret = [read1[0], read1[2], span1, span2]
-    return ret
-
-def iter_sam( p_sam ):
+def concordant_hits( p_sam=None ):
     counter = 0
-    with wu.try_open( p_sam ) as fh:
-        reader = csv.reader( fh, dialect="excel-tab" )
-        for row in reader:
-            if row[0][0] == "@":
-                counter += 1
-            else:
-                counter += 2
-                read1 = row
-                read2 = reader.next( )
-                hit = process_pair( read1, read2 )
-                if hit is not None:
-                    yield hit
-            if counter % 10000 == 0:
-                wu.say( "  {:,} lines processed".format( counter ) )
+    mate1 = None
+    mate2 = None
+    for hit in wu.iter_sam_hits( p_sam ):
+        # progress
+        counter += 1
+        if counter % int( 1e5 ) == 0:
+            wu.say( "  SAM alignments processed: {:.1f}M".format( counter / 1e6 ) )
+        # weave
+        mate1 = mate2
+        mate2 = hit
+        # edge case
+        if mate1 is None:
+            continue
+        # not a mate pair
+        elif mate1.qseqid != mate2.qseqid:
+            continue
+        # not concordant
+        elif mate1.sseqid != mate2.sseqid:
+            continue
+        # good pair
+        else:
+            yield [mate1, mate2]
 
-# ---------------------------------------------------------------
-# utils for comparing SAM and GFF
-# ---------------------------------------------------------------
-
-def find_overlaps( span1=None, span2=None, loci=None, crit=1 ):
+def find_hit_loci( mate1=None, mate2=None, loci=None, args=None ):
     hits = set( )
     for L in loci:
         a1, a2 = L.start, L.end
-        for span in [span1, span2]:
-            b1, b2 = span
+        for read in [mate1, mate2]:
+            b1, b2 = read.sstart, read.send
             overlap = wu.calc_overlap( a1, a2, b1, b2, normalize=False )
-            if overlap >= crit:
+            if overlap >= args.min_overlap_sites:
                 hits.add( L.code )
     return hits
 
@@ -357,36 +325,29 @@ def find_overlaps( span1=None, span2=None, loci=None, crit=1 ):
 # utils for evaluating a contig
 # ---------------------------------------------------------------
 
-def code_start_stop( code ):
-    items = code.split( ":" )
-    start = int( items[0] )
-    stop = int( items[1] )
-    return [start, stop]
-
 def evaluate_contig( loci=None, coverage=None, gene_hits=None, args=None ):
     rowdicts = []
-    # determine the loci codes to consider
-    codes = [L.code for L in sorted( loci, key=lambda x: x.start )]
-    for i in range( len( codes ) - 1 ):
+    loci = sorted( loci, key=lambda x: x.start )
+    for i in range( len( loci ) - 1 ):
         rowdict = {}
-        rowdict["gene1"]  = codes[i]
-        rowdict["gene2"]  = codes[i+1]
+        L1 = loci[i]
+        L2 = loci[i+1]
+        rowdict["gene1"] = code1 = L1.code
+        rowdict["gene2"] = code2 = L2.code
         # check hits
-        rowdict["hits_junction"]     = gh = gene_hits.get( (codes[i], codes[i+1]), 0 )
-        rowdict["hits_ok"]           = hits_ok = gh >= args.junction_fragments
-        # check coverage
-        start1, stop1 = code_start_stop( codes[i] )
-        start2, stop2 = code_start_stop( codes[i+1] )
-        rowdict["coverage_gene1"]    = c1 = np.mean( coverage[start1-1:stop1] )
-        rowdict["coverage_gene2"]    = c2 = np.mean( coverage[start2-1:stop2] )
+        rowdict["hits_junction"] = my_hits = gene_hits.get( (code1, code2), 0 )
+        rowdict["hits_ok"] = hits_ok = my_hits >= args.min_junction_hits
+        # check coverage (note: base-0 start and pythonic end)
+        rowdict["coverage_gene1"] = my_cov1 = np.mean( coverage[L1.start-1:L1.end] )
+        rowdict["coverage_gene2"] = my_cov2 = np.mean( coverage[L2.start-1:L2.end] )
         # define junction coverage as 0 if there's no gap
-        cj = 0.0 if start2 <= stop1 else np.mean( coverage[stop1-1:start2] )
-        rowdict["coverage_junction"] = cj
+        my_covj = 0.0 if L2.start <= L1.end else np.mean( coverage[L1.end-1:L2.start] )
+        rowdict["coverage_junction"] = my_covj
         # note: pseudocount to avoid /0
-        rowdict["coverage_ratio"]    = cr = cj / ( np.mean( [c1, c2] ) + 1e-6 )
-        rowdict["coverage_ok"]       = coverage_ok = cr >= args.junction_coverage_ratio
+        rowdict["coverage_ratio"] = my_ratio = my_covj / ( np.mean( [my_cov1, my_cov2] ) + 1e-6 )
+        rowdict["coverage_ok"] = coverage_ok = my_ratio >= args.min_junction_ratio
         # finalize
-        rowdict["acceptable"]        = rowdict["hits_ok"] or rowdict["coverage_ok"]
+        rowdict["acceptable"] = rowdict["hits_ok"] or rowdict["coverage_ok"]
         rowdicts.append( rowdict )
     return rowdicts
 
@@ -455,10 +416,10 @@ def main( ):
     basename = args.basename
     if basename is None:
         basename = wu.path2name( p_contigs )
-    p_index           = wu.name2path( basename, p_tmpdir, ".index" )
-    p_sam             = wu.name2path( basename, p_tmpdir, ".sam" )
-    p_junction_report = wu.name2path( basename, p_outdir, ".junction_report.tsv" )
-    p_contig_report   = wu.name2path( basename, p_outdir, ".contig_report.tsv" )
+    p_index     = wu.name2path( basename, p_tmpdir, ".index" )
+    p_sam       = wu.name2path( basename, p_tmpdir, ".sam" )
+    p_junctions = wu.name2path( basename, p_outdir, ".junctions.tsv" )
+    p_contig_qc = wu.name2path( basename, p_outdir, ".contig_qc.tsv" )
 
     # alignment workflow
     if args.sam is not None:
@@ -481,34 +442,36 @@ def main( ):
             threads=args.threads,
             )
     else:
-        wu.die( "Must provide reads for alignment or SAM file." )
+        wu.die( "Must provide READS1/2 or SAM file." )
 
     # load contig data
+    wu.say( "Loading contig lengths." )
     contig_lengths = wu.read_contig_lengths( p_contigs )
     contig_coverage = {}
-    contig_hits = {}
-    wu.say( "Loading contig lengths." )
     for name, length in contig_lengths.items( ):
         contig_coverage[name] = np.zeros( length )
-    contig_loci = {}
     wu.say( "Loading contig gene coordinates." )
+    contig_loci = {}
     for name, loci in wu.iter_contig_loci( p_gff ):
         contig_loci[name] = loci
+    contig_hits = {}
 
     # post-processing workflow
     wu.say( "Processing SAM file." )
-    for read, contig, span1, span2 in iter_sam( p_sam ):
+    for mate1, mate2 in concordant_hits( p_sam ):
+        contig = mate1.sseqid
         inner = contig_hits.setdefault( contig, Counter( ) )
-        # update pers-site coverage
-        L = min( span1 + span2 ) - 1
-        R = max( span1 + span2 ) - 1
+        # update pers-site coverage (note: base-0 start and pythonic end)
+        coords = [mate1.sstart, mate1.send, mate2.sstart, mate2.send]
+        L = min( coords ) - 1
+        R = max( coords ) - 1
         contig_coverage[contig][L:R+1] += 1
         # find hit loci
-        hits = find_overlaps( 
-            span1=span1, 
-            span2=span2, 
+        hits = find_hit_loci( 
+            mate1=mate1, 
+            mate2=mate2, 
             loci=contig_loci.get( contig, [] ),
-            crit=args.read_gene_overlap,
+            args=args,
             )
         # update self counts
         for code in hits:
@@ -531,9 +494,9 @@ def main( ):
     # write junction report
     wu.say( "Writing junction report." )
     failures = {}
-    with wu.try_open( p_junction_report, "w" ) as fh:
+    with wu.try_open( p_junctions, "w" ) as fh:
         wu.write_rowdict( 
-            format=c_formats["junction_report"], 
+            format=c_formats["junctions"], 
             file=fh, )
         for c in sorted( contig_lengths ):
             rowdicts = evaluate_contig( 
@@ -547,38 +510,39 @@ def main( ):
                 rowdict["contig"] = c
                 wu.write_rowdict( 
                     rowdict=rowdict, 
-                    format=c_formats["junction_report"], 
+                    format=c_formats["junctions"], 
                     file=fh, )
 
     # write contig report
     wu.say( "Writing contig report." )
-    with wu.try_open( p_contig_report, "w" ) as fh:
+    with wu.try_open( p_contig_qc, "w" ) as fh:
         wu.write_rowdict( 
-            format=c_formats["contig_report"], 
+            format=c_formats["contig_qc"], 
             file=fh, )
         for c in sorted( contig_lengths ):
             ok = True
             rowdict = {}
             rowdict["contig"] = c
             rowdict["length"] = my_len = contig_lengths[c]
-            if my_len < args.min_length:
+            if my_len < args.min_contig_length:
                 ok = False
             rowdict["loci"] = my_loci = len( contig_loci.get( c, [] ) )
-            if my_loci < args.min_genes:
+            if my_loci < args.min_contig_genes:
                 ok = False
             rowdict["failing_junctions"] = my_fails = failures.get( c, 0 )
             # note pseudocount to avoid /0 on 1-gene contigs
-            rowdict["failure_rate"] = my_rate = my_fails / (my_loci - 1 + 1e-6)
+            my_rate = my_fails / (my_loci - 1 + 1e-6)
             # define rate to be 0 on contigs without a junction
-            my_rate = 0 if my_loci < 2 else my_rate
-            if my_rate > args.allowed_failure_rate:
+            rowdict["failure_rate"] = myrate = 0.0 if my_loci < 2 else my_rate
+            if my_rate > args.max_contig_failures:
                 ok = False
             rowdict["summary"] = "OK" if ok else "FAILED"
             # write
             wu.write_rowdict( 
                 rowdict=rowdict,
-                format=c_formats["contig_report"],
+                format=c_formats["contig_qc"],
                 file=fh,
+                precision=2,
                 )
 
     # wrap-up
