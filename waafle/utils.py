@@ -35,6 +35,8 @@ import gzip
 import bz2
 from collections import OrderedDict
 
+import numpy as np
+
 # ---------------------------------------------------------------
 # ---------------------------------------------------------------
 # GENERIC HELPER FUNCTIONS
@@ -116,6 +118,29 @@ def read_contig_lengths( fasta ):
             else:
                 data[header] += len( line )
     return data
+
+def write_rowdict( rowdict=None, format=None, file=None, 
+                   delim="\t", precision=4, empty_field="--", ):
+    """ write rowdict line conditioned on format """
+    if rowdict is None:
+        # print headers
+        print( delim.join( [k.upper( ) for k in format] ), file=file )
+    elif set( rowdict ) != set( format ):
+        # bad line
+        for f in format:
+            print( f, rowdict.get( f, None ) )
+        die( "Format mismatch." )
+    else:
+        # print line
+        items = []
+        for f in format:
+            if type( rowdict[f] ) in [float, np.float32, np.float64]:
+                rowdict[f] = "{A:.{B}f}".format( A=rowdict[f], B=precision )
+            items.append( str( rowdict[f] ) if rowdict[f] != "" else empty_field )
+        try:
+            print( delim.join( items ), file=file )
+        except:
+            die( "Writing row failed." )
  
 # ---------------------------------------------------------------
 # ---------------------------------------------------------------
@@ -261,8 +286,6 @@ c_gff_fields = [
 class Locus( ):
 
     def __init__( self, gff_row, attach_annotations=True ):
-        # no name by default
-        self.name = None
         # gff fields
         if len( gff_row ) != len( c_gff_fields ):
             die( "Bad GFF row:", gff_row )
@@ -277,6 +300,9 @@ class Locus( ):
                 system, value = match.groups( )
                 self.annotations[system] = value
                 self.annotation_scores[system] = None
+        # no name by default
+        self.name = None
+        self.code = ":".join( [str( self.start ), str( self.end ), self.strand] )
         # ignore status
         self.ignore = False
 
@@ -446,16 +472,65 @@ class INode:
     def to_list( self ):
         return [self.start, self.stop, self.strand] 
 
-def calc_overlap( a1, a2, b1, b2 ):
+def calc_overlap( a1, a2, b1, b2, normalize=True ):
     """ compute overlap between two intervals """
+    overlap = None
     a1, a2 = sorted( [a1, a2] )
     b1, b2 = sorted( [b1, b2] )
     if b1 > a2 or a1 > b2:
-        return 0
+        overlap = 0
     else:
         outleft, inleft, inright, outright = sorted( [a1, a2, b1, b2] )
-        denom = min( ( a2 - a1 + 1 ), ( b2 - b1 + 1 ) )
-        return ( inright - inleft + 1 ) / float( denom )
+        overlap = inright - inleft + 1
+        if normalize:
+            denom = min( (a2 - a1 + 1), (b2 - b1 + 1) )
+            overlap /= float( denom )
+    return overlap
+
+# ---------------------------------------------------------------
+# ---------------------------------------------------------------
+# WORKING WITH SAM OUTPUT
+# ---------------------------------------------------------------
+# ---------------------------------------------------------------
+
+"""
+@HD  VN:1.0                SO:unsorted
+@SQ  SN:SRS011061_k119_3   LN:961
+@SQ  SN:SRS011061_k119_5   LN:837
+@SQ  SN:SRS011061_k119_11  LN:502
+...
+61NLYAAXX100508:5:100:10002:9010   83   SRS011061_k119_37319  25069  42  101M      =  25052  -118
+61NLYAAXX100508:5:100:10002:9010   163  SRS011061_k119_37319  25052  42  46M1I43M  =  25069  118
+61NLYAAXX100508:5:100:10002:9075   83   SRS011061_k119_14610  17113  42  101M      =  16942  -272
+61NLYAAXX100508:5:100:10002:9075   163  SRS011061_k119_14610  16942  42  46M1I43M  =  17113  272
+61NLYAAXX100508:5:100:10003:17250  77   *                     0      0   *         *  0      0
+61NLYAAXX100508:5:100:10003:17250  141  *                     0      0   *         *  0      0
+61NLYAAXX100508:5:100:10003:3146   99   SRS011061_k119_83764  304    42  101M      =  366    152
+61NLYAAXX100508:5:100:10003:3146   147  SRS011061_k119_83764  366    42  90M       =  304    -152
+"""
+
+class SAMHit:
+
+    """ Some data about an aligned read in a SAM file """
+
+    def __init__( self, sam_row ):
+
+        self.qseqid  = sam_row[0]
+        self.sseqid  = sam_row[2]
+        self.sstart  = int( sam_row[3] )
+        self.send    = self.sstart + cigar_length( sam_row[5] ) - 1
+
+def cigar_length( cigar ):
+    counts = [int( c ) for c in re.split( "[A-Z]+", cigar ) if c != ""]
+    sigils = [s        for s in re.split( "[0-9]+", cigar ) if s != ""]
+    # ignore read-only bands
+    return sum( [c for c, s in zip( counts, sigils ) if s in "DHMNSX="] )
+
+def iter_sam_hits( sam_file ):
+    with try_open( sam_file ) as fh:
+        for row in csv.reader( fh, dialect="excel-tab" ):
+            if row[0][0] != "@" and row[2] != "*":
+                yield SAMHit( row )
 
 # ---------------------------------------------------------------
 # ---------------------------------------------------------------

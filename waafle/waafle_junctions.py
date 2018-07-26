@@ -35,7 +35,7 @@ from collections import Counter
 
 import numpy as np
 
-from waafle import dev_utils as wu
+from waafle import utils as wu
 
 # ---------------------------------------------------------------
 # description
@@ -174,6 +174,13 @@ def get_args( ):
         metavar="<path>",
         help="path to bowtie2\n[default: $PATH]",
         )
+    g.add_argument( 
+        "--threads",
+        type=int,
+        default=1,
+        metavar="<int>",
+        help="number of threads for bowtie2 steps\n[default: 1]",
+        )
 
     args = parser.parse_args( )
     return args
@@ -189,8 +196,8 @@ def bowtie2_build( p_bowtie2_build=None, p_contigs=None, p_index=None, ):
         "INDEX":   p_index, 
         }
     if os.path.exists( p_index + ".1.bt2" ):
-        wu.say( "The index <{INDEX}> already exists.".format( **alias ) )
-        wu.say( "(Move/delete to force rebuild.)" )
+        wu.say( "WARNING: The index <{INDEX}> already exists.".format( **alias ) )
+        wu.say( "         (Move/delete to force rebuild.)" )
     else:
         wu.say( "Indexing <{CONTIGS}> to <{INDEX}>.".format( **alias ) )
         command = [
@@ -200,7 +207,7 @@ def bowtie2_build( p_bowtie2_build=None, p_contigs=None, p_index=None, ):
             ]
         command = " ".join( command )
         command = command.format( **alias )
-        os.system( "{PROG} {CONTIGS} {INDEX}".format( **alias ) )
+        os.system( command )
         wu.say( "Build complete." )
     return None
 
@@ -214,21 +221,25 @@ def bowtie2_align( p_bowtie2=None, p_reads1=None, p_reads2=None,
         "SAM":     p_sam,
         "THREADS": threads,
         }
-    wu.say( "Performing bowtie2 alignment." )
-    command = [
-        "{PROG}",
-        "-x {INDEX}",
-        "-1 {READS1}",
-        "-2 {READS2}",
-        "-S {SAM}",
-        "--threads {THREADS}",
-        "--no-mixed",
-        "--no-discordant",
-        ]
-    command = " ".join( command )
-    command = command.format( **alias )
-    os.system( command )
-    wu.say( "Alignment complete." )
+    if os.path.exists( p_sam ):
+        wu.say( "WARNING: A sam mapping <{SAM}> already exists.".format( **alias ) )
+        wu.say( "         (Move/delete to force rebuild.)" )
+    else:
+        wu.say( "Performing bowtie2 alignment." )
+        command = [
+            "{PROG}",
+            "-x {INDEX}",
+            "-1 {READS1}",
+            "-2 {READS2}",
+            "-S {SAM}",
+            "--threads {THREADS}",
+            "--no-mixed",
+            "--no-discordant",
+            ]
+        command = " ".join( command )
+        command = command.format( **alias )
+        os.system( command )
+        wu.say( "Alignment complete." )
     return None
 
 # ---------------------------------------------------------------

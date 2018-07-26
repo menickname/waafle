@@ -274,10 +274,10 @@ def get_args( ):
         )
     g.add_argument(
         "--transfer-annotations",
-        choices=["lenient", "strict", "very-strict"],
-        default="strict",
-        metavar="<lenient/strict/very-strict>",
-        help="stringency of gene annotation transfer to loci\n[default: strict]",
+        choices=["unfiltered", "lenient", "strict"],
+        default="lenient",
+        metavar="<unfiltered/lenient/strict>",
+        help="stringency of gene annotation transfer to loci\n[default: lenient]",
         )
     g.add_argument(
         "--min-overlap",
@@ -330,11 +330,11 @@ class Contig( ):
         self.min_threshold = min( args.one_clade_threshold, args.two_clade_threshold )
         self.max_threshold = max( args.one_clade_threshold, args.two_clade_threshold )
         # threshold for annotation transfer
-        if args.transfer_annotations == "lenient":
+        if args.transfer_annotations == "unfiltered":
             self.transfer_threshold = 0.0
-        elif args.transfer_annotations == "strict":
+        elif args.transfer_annotations == "lenient":
             self.transfer_threshold = self.min_threshold
-        elif args.transfer_annotations == "very-strict":
+        elif args.transfer_annotations == "strict":
             self.transfer_threshold = self.max_threshold
 
     def attach_loci( self, loci ):
@@ -738,12 +738,8 @@ def make_tails_field( tails ):
 
 def make_loci_field( loci ):
     """ make string representation of contig loci """
-    items = []
-    for L in loci:
-        triple = [L.start, L.end, L.strand]
-        triple = [str( k ) for k in triple]
-        items.append( c_delim3.join( triple ) )
-    return c_delim2.join( items )
+    codes = [L.code for L in loci]
+    return c_delim2.join( codes )
 
 def make_gene_scores_field( contig, clade ):
     scores = ["{A:.{B}f}".format( A=s, B=c_precision ) \
@@ -781,22 +777,6 @@ def attach_rowdict_functions( rowdict, contig, systems ):
         # note: key here must match definition in headers
         rowdict[c_annotation_prefix + s] = c_delim2.join( items )
 
-def write_rowdict( rowdict, format, handle ):
-    """ write rowdict line conditioned on format """
-    if set( rowdict ) != set( format ):
-        wu.die( "Format mismatch." )
-    else:
-        items = []
-        for f in format:
-            if type( rowdict[f] ) in [float, np.float32, np.float64]:
-                rowdict[f] = "{A:.{B}f}".format( A=rowdict[f], B=c_precision )
-            items.append( str( rowdict[f] ) if rowdict[f] != "" else c_empty_field )
-        try:
-            print( c_delim0.join( items ), file=handle )
-        except:
-            wu.say( items )
-            sys.exit( )
-
 def write_details( details, contig, iteration ):
     if details is not None:
         for clade in contig.clades:
@@ -806,9 +786,8 @@ def write_details( details, contig, iteration ):
                 "clade":       clade,
                 "gene_scores": make_gene_scores_field( contig, clade ),
                 "gene_spans":  make_gene_spans_field( contig, clade ),
-                #"gene_spans":  c_empty_field,
                 }
-            write_rowdict( rowdict, c_formats["details"], details )
+            wu.write_rowdict( rowdict, c_formats["details"], details )
 
 def write_main_output_files( contigs, taxonomy, args ):
 
@@ -833,7 +812,7 @@ def write_main_output_files( contigs, taxonomy, args ):
 
     # print headers
     for name in handles:
-        print( c_delim0.join( [k.upper( ) for k in c_main_formats[name]] ), file=handles[name] )  
+        wu.write_rowdict( None, c_main_formats[name], file=handles[name] )
         
     # write results (sorted loop over contigs)
     for contig_name in sorted( contigs ):
@@ -849,7 +828,7 @@ def write_main_output_files( contigs, taxonomy, args ):
                 "loci":          make_loci_field( contig.loci ),
                 }
             attach_rowdict_functions( rowdict, contig, systems )
-            write_rowdict( rowdict, c_formats["unclassified"], handles["unclassified"] )
+            wu.write_rowdict( rowdict, c_formats["unclassified"], handles["unclassified"] )
         # no_lgt
         elif is_ok( best_one ):
             clade = best_one.clade1
@@ -866,7 +845,7 @@ def write_main_output_files( contigs, taxonomy, args ):
                 "loci":          make_loci_field( contig.loci ),
                 }
             attach_rowdict_functions( rowdict, contig, systems )
-            write_rowdict( rowdict, c_formats["no_lgt"], handles["no_lgt"] )
+            wu.write_rowdict( rowdict, c_formats["no_lgt"], handles["no_lgt"] )
         # lgt
         elif is_ok( best_two ):
             clade1, clade2 = best_two.clade1, best_two.clade2
@@ -888,7 +867,7 @@ def write_main_output_files( contigs, taxonomy, args ):
                 "loci":          make_loci_field( contig.loci ),
                 }
             attach_rowdict_functions( rowdict, contig, systems )
-            write_rowdict( rowdict, c_formats["lgt"], handles["lgt"] )
+            wu.write_rowdict( rowdict, c_formats["lgt"], handles["lgt"] )
 
     # wrap up
     for h in handles.values( ):
@@ -931,7 +910,7 @@ def main( ):
         details = wu.try_open( os.path.join( 
                 args.outdir, args.basename + ".details.tsv.gz" ), "w" )
         # headers
-        print( c_delim0.join( [k.upper( ) for k in c_formats["details"]] ), file=details )
+        wu.write_rowdict( None, c_formats["details"], file=details )
 
     # parse hits, process contigs
     wu.say( "Analyzing contigs." )
