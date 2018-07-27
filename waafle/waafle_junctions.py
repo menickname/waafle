@@ -42,15 +42,14 @@ from waafle import utils as wu
 # ---------------------------------------------------------------
 
 description = wu.describe( """
-{SCRIPT}: Performs coverage-level quality control on contigs
+{SCRIPT}: Generate gene-gene junction stats for contig QC
 
 This script maps reads to contigs (or analyzes an existing mapping)
-to identify contigs whose junctions aren't supported by reads. A short
-junction is supported if mate-pairs engulf the junction. A long junction
-(i.e. too long to be engulfed by a mate-pair) is supported if its coverage
-is "reasonably similar" to the flanking genes' coverages (e.g. at least half
-their mean). This script will also filter out contigs that are too short
-or which contain too few genes.
+to find support for gene-gene junctions. A junction is supported if
+there are mate-pairs that span the junction. As this may be infeasible
+for larger junctions (e.g. those exceeding a typical insert size of 300 nt),
+a junction can also be supported by having a reasonable average coverage
+relative to its flanking genes.
 """ )
 
 # ---------------------------------------------------------------
@@ -181,6 +180,11 @@ def get_args( ):
         metavar="<int>",
         help="number of threads for bowtie2 steps\n[default: 1]",
         )
+    g.add_argument( 
+        "--resume",
+        action="store_true",
+        help="if set, use existing .index and/or .sam if found\n[default: off]",
+        )
 
     args = parser.parse_args( )
     return args
@@ -189,15 +193,15 @@ def get_args( ):
 # utils for running bowtie2
 # ---------------------------------------------------------------
 
-def bowtie2_build( p_bowtie2_build=None, p_contigs=None, p_index=None, ):
+def bowtie2_build( p_bowtie2_build=None, p_contigs=None, p_index=None, 
+                   args=None, ):
     alias = {
         "PROG":    p_bowtie2_build,
         "CONTIGS": p_contigs, 
         "INDEX":   p_index, 
         }
-    if os.path.exists( p_index + ".1.bt2" ):
-        wu.say( "WARNING: The index <{INDEX}> already exists.".format( **alias ) )
-        wu.say( "         (Move/delete to force rebuild.)" )
+    if args.resume and os.path.exists( p_index + ".1.bt2" ):
+        wu.say( "RESUMING: The index <{INDEX}> already exists.".format( **alias ) )
     else:
         wu.say( "Indexing <{CONTIGS}> to <{INDEX}>.".format( **alias ) )
         command = [
@@ -212,18 +216,17 @@ def bowtie2_build( p_bowtie2_build=None, p_contigs=None, p_index=None, ):
     return None
 
 def bowtie2_align( p_bowtie2=None, p_reads1=None, p_reads2=None, 
-                   p_index=None, p_sam=None, threads=None, ):
+                   p_index=None, p_sam=None, args=None, ):
     alias = {
         "PROG":    p_bowtie2,
         "READS1":  p_reads1,
         "READS2":  p_reads2,
         "INDEX":   p_index,
         "SAM":     p_sam,
-        "THREADS": threads,
+        "THREADS": args.threads,
         }
-    if os.path.exists( p_sam ):
-        wu.say( "WARNING: A sam mapping <{SAM}> already exists.".format( **alias ) )
-        wu.say( "         (Move/delete to force rebuild.)" )
+    if args.resume and os.path.exists( p_sam ):
+        wu.say( "RESUMING: A sam mapping <{SAM}> already exists.".format( **alias ) )
     else:
         wu.say( "Performing bowtie2 alignment." )
         command = [
@@ -392,9 +395,10 @@ def main( ):
     elif args.reads1 is not None and args.reads2 is not None:
         # build process
         bowtie2_build( 
-            p_bowtie2_build = args.bowtie2_build,
-            p_contigs = args.contigs,
-            p_index = p_index,
+            p_bowtie2_build=args.bowtie2_build,
+            p_contigs=args.contigs,
+            p_index=p_index,
+            args=args,
             )
         # alignment process
         bowtie2_align(
@@ -403,7 +407,7 @@ def main( ):
             p_reads2=args.reads2,
             p_index=p_index,
             p_sam=p_sam,
-            threads=args.threads,
+            args=args,
             )
     else:
         wu.die( "Must provide READS or SAM file." )
