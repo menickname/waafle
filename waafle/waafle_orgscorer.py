@@ -55,6 +55,7 @@ correpond to putative LGTs.
 # constants
 # ---------------------------------------------------------------
 
+c_eps                = 1e-6
 c_precision          = 3
 c_annotation_prefix  = "ANNOTATIONS:"
 c_missing_annotation = "None"
@@ -273,10 +274,10 @@ def get_args( ):
         help="method for handling loci that are never assigned to known clades\n[default: ignore]",
         )
     g.add_argument(
-        "--transfer-annotations",
-        choices=["unfiltered", "lenient", "strict"],
+        "--annotation-threshold",
+        choices=["off", "lenient", "strict"],
         default="lenient",
-        metavar="<unfiltered/lenient/strict>",
+        metavar="<off/lenient/strict>",
         help="stringency of gene annotation transfer to loci\n[default: lenient]",
         )
     g.add_argument(
@@ -330,8 +331,8 @@ class Contig( ):
         self.min_threshold = min( args.one_clade_threshold, args.two_clade_threshold )
         self.max_threshold = max( args.one_clade_threshold, args.two_clade_threshold )
         # threshold for annotation transfer
-        if args.transfer_annotations == "unfiltered":
-            self.transfer_threshold = 0.0
+        if args.transfer_annotations == "off":
+            self.transfer_threshold = c_eps
         elif args.transfer_annotations == "lenient":
             self.transfer_threshold = self.min_threshold
         elif args.transfer_annotations == "strict":
@@ -696,7 +697,8 @@ def check_clade_leaves( option, taxonomy, args ):
 def check_sister_penalty( option, taxonomy, args ):
     C = option.contig
     # strict punishes sister homologs >k1; lenient punishes >k2 (happens less often)
-    my_threshold = {"lenient":C.max_threshold, "strict":C.min_threshold}[args.sister_penalty]
+    switch = {"lenient":C.max_threshold, "strict":C.min_threshold}
+    my_threshold = switch[args.sister_penalty]
     clade1, clade2 = option.clade1, option.clade2
     sisters, penalties = {}, {}
     # note the unintuitive swap: a B locus is penalized by A's sisters (but not A itself)
