@@ -331,12 +331,12 @@ class Contig( ):
         self.min_threshold = min( args.one_clade_threshold, args.two_clade_threshold )
         self.max_threshold = max( args.one_clade_threshold, args.two_clade_threshold )
         # threshold for annotation transfer
-        if args.transfer_annotations == "off":
-            self.transfer_threshold = c_eps
-        elif args.transfer_annotations == "lenient":
-            self.transfer_threshold = self.min_threshold
-        elif args.transfer_annotations == "strict":
-            self.transfer_threshold = self.max_threshold
+        if args.annotation_threshold == "off":
+            self.annotation_threshold = c_eps
+        elif args.annotation_threshold == "lenient":
+            self.annotation_threshold = self.min_threshold
+        elif args.annotation_threshold == "strict":
+            self.annotation_threshold = self.max_threshold
 
     def attach_loci( self, loci ):
         """ Filter and load genes from GFF into this contig """
@@ -375,11 +375,11 @@ class Contig( ):
         ldict[locus.name][h1:h2+1] = np.maximum( ldict[locus.name][h1:h2+1], hit.waafle_score )
         # (potentially) update locus with this hit's annotations
         for system, value in hit.annotations.items( ):
-            ref = locus.annotation_scores.get( system, self.transfer_threshold )
+            ref = locus.annotation_scores.get( system, self.annotation_threshold )
             if ref is None:
                 # annotation from GFF, don't overwrite
                 continue
-            elif hit.waafle_score > ref:
+            elif hit.waafle_score >= ref:
                 # add/replace
                 locus.annotations[system] = value
                 locus.annotation_scores[system] = hit.waafle_score
