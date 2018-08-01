@@ -529,7 +529,14 @@ def cigar_length( cigar ):
 def iter_sam_hits( sam_file ):
     with try_open( sam_file ) as fh:
         for row in csv.reader( fh, dialect="excel-tab" ):
-            if row[0][0] != "@" and row[2] != "*":
+            # header
+            if row[0][0] == "@":
+                continue
+            # mandatory fields for a hit line
+            elif len( row ) < 11:
+                continue
+            # aligned read
+            elif row[2] != "*":
                 yield SAMHit( row )
 
 # ---------------------------------------------------------------

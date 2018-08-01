@@ -243,6 +243,13 @@ def get_args( ):
         help="allowed fraction of ambiguous (A OR B) gene length in a putative A+B contig\n[default: 0.1]",
         )
     g.add_argument(
+        "--ambiguous-threshold",
+        choices=["off", "lenient", "strict"],
+        default="off",
+        metavar="<off/lenient/strict>",
+        help="homology threshold for defining an ambiguous (A OR B) gene\n[default: off]",
+        )
+    g.add_argument(
         "--sister-penalty",
         choices=["off", "lenient", "strict"],
         default="strict",
@@ -485,8 +492,12 @@ class Option( ):
         # clade2 tails after melding
         self.tails2    = []
 
-    def set_synteny_one( self, k1 ):
+    def set_synteny_one( self ):
+        # load k params from contig / args
+        k1 = self.contig.args.one_clade_threshold
+        # clade1 gene scores
         scores = self.contig.gene_scores[self.clade1]
+        # generate synteny
         synteny = ""
         for s, L in zip( scores, self.contig.loci ):
             if L.ignore:
@@ -497,14 +508,21 @@ class Option( ):
                 synteny += c_synchar_error
         self.synteny = synteny
 
-    def set_synteny_two( self, k2 ):
+    def set_synteny_two( self ):
+        # load k params from contig / args
+        k1 = self.contig.args.one_clade_threshold
+        k2 = self.contig.args.two_clade_threshold
+        switch = {"off":c_eps, "lenient":min( k1, k2 ), "strict":max( k1, k2 )}
+        k_ambiguous = switch[self.contig.args.ambiguous_threshold]
+        # clade1/2 gene scores
         scores1 = self.contig.gene_scores[self.clade1]
         scores2 = self.contig.gene_scores[self.clade2]
+        # generate synteny
         synteny = ""
         for s1, s2, L in zip( scores1, scores2, self.contig.loci ):
             if L.ignore:
                 synteny += c_synchar_ignored
-            elif min( s1, s2 ) >= k2:
+            elif min( s1, s2 ) >= k_ambiguous:
                 synteny += c_synchar_ambiguous
             elif s1 >= k2:
                 synteny += "A"
@@ -571,7 +589,7 @@ def explain_one( contig, taxonomy, args ):
             option.crit    = crit
             option.rank    = rank
             option.clade1  = clade
-            option.set_synteny_one( args.one_clade_threshold )
+            option.set_synteny_one( )
             options.append( option )
     best = meld_one( options, taxonomy, args ) if len( options ) > 0 else None
     return best
@@ -593,7 +611,7 @@ def explain_two( contig, taxonomy, args ):
                     option.crit    = crit
                     option.clade1  = clade1
                     option.clade2  = clade2
-                    option.set_synteny_two( args.two_clade_threshold )
+                    option.set_synteny_two( )
                     options.append( option )
     best = meld_two( options, taxonomy, args ) if len( options ) > 0 else None
     return best
