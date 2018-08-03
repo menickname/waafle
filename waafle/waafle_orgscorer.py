@@ -517,12 +517,14 @@ class Option( ):
         # clade1/2 gene scores
         scores1 = self.contig.gene_scores[self.clade1]
         scores2 = self.contig.gene_scores[self.clade2]
+        # don't consider "ambiguous" option if unknown taxon involved
+        unknown_involved = wu.c_unknown in [self.clade1, self.clade2]
         # generate synteny
         synteny = ""
         for s1, s2, L in zip( scores1, scores2, self.contig.loci ):
             if L.ignore:
                 synteny += c_synchar_ignored
-            elif min( s1, s2 ) >= k_ambiguous:
+            elif min( s1, s2 ) >= k_ambiguous and not unknown_involved:
                 synteny += c_synchar_ambiguous
             elif s1 >= k2:
                 synteny += "A"
