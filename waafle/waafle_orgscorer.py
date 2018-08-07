@@ -245,9 +245,9 @@ def get_args( ):
     g.add_argument(
         "--ambiguous-threshold",
         choices=["off", "lenient", "strict"],
-        default="off",
+        default="lenient",
         metavar="<off/lenient/strict>",
-        help="homology threshold for defining an ambiguous (A OR B) gene\n[default: off]",
+        help="homology threshold for defining an ambiguous (A OR B) gene\n[default: lenient]",
         )
     g.add_argument(
         "--sister-penalty",
