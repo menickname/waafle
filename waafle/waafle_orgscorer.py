@@ -2,9 +2,9 @@
 
 """
 This module is a part of:
-WAAFLE, the [W]orkflow to [A]nnotate [A]ssemblies and [F]ind [L]GT [E]vents
+WAAFLE, a [W]orkflow to [A]nnotate [A]ssemblies and [F]ind [L]GT [E]vents
 
-Copyright (c) 2018 Harvard T.H. Chan School of Public Health
+Copyright (c) 2019 Harvard T.H. Chan School of Public Health
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
