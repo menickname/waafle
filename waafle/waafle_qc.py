@@ -33,7 +33,7 @@ import argparse
 import re
 from collections import Counter
 
-from waafle import dev_utils as wu
+from waafle import utils as wu
 
 # ---------------------------------------------------------------
 # description
