@@ -31,7 +31,7 @@ In the meantime, if you use WAAFLE or the datasets provided below in your work, 
 
 * You will need a multifasta file containing metagenomic contigs:
 	* Referred to as `contigs.fna` below
-	* Or download and try [demo_contigs.fna](https://bitbucket.org/biobakery/waafle/src/default/demo/input/demo_contigs.fna)
+	* Or download and try [demo_contigs.fna](https://bitbucket.org/biobakery/waafle/raw/tip/demo/input/demo_contigs.fna)
 * Search your contigs against the WAAFLE database:
 	* `$ waafle_search contigs.fna waafledb/waafledb`
 	* This creates `contigs.blastout` (BLAST hits)
@@ -39,7 +39,7 @@ In the meantime, if you use WAAFLE or the datasets provided below in your work, 
 	* `$ waafle_genecaller contigs.blastout`
 	* This creates `contigs.gff` (gene calls)
 * Taxonomically classify contigs and find LGT events:
-	* `$ waafle_orgscorer contigs.fna contigs.blastput contigs.gff waafledb_taxonomy.tsv`
+	* `$ waafle_orgscorer contigs.fna contigs.blastout contigs.gff waafledb_taxonomy.tsv`
 	* This creates `contigs.no_lgt.tsv` (single-clade contigs)
 	* This creates `contigs.lgt.tsv` (putative LGT events)
 
