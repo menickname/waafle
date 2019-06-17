@@ -7,7 +7,7 @@ setuptools.setup(
     name = "waafle",
     version = "0.1.0dev",
     author = "Eric Franzosa",
-    author_email = "eric.franzosa@gmail.com",
+    author_email = "franzosa@hsph.harvard.edu",
     license = "MIT",
     description = "Identify LGT events from metagenomic contigs.",
     long_description = long_description,
