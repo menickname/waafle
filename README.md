@@ -134,50 +134,35 @@ ANNOTATIONS:UNIPROT  R5E4K6|D4L7I2|D4JXM0|D4L7I1|D4L7I0|None|D4L7H8
 The fields in detail:
 
 * **`CONTIG_NAME`**: the name of the contig from the input FASTA file.
-
 * **`CALL`**: indicates that this was an LGT contig.
-
 * **`CONTIG_LENGTH`**: the length of the contig in nucleotides.
-
 * **`MIN_MAX_SCORE`**: the minimum score for the pair of clades explaining the contig along the length of the contig. (i.e. the score for identifying this as a putative LGT contig, with a default threshold of 0.8.)
-
 * **`AVG_MAX_SCORE`**: the average score for the pair of clades explaining the contig (used for ranking multiple potential explanations of the contig).
-
 * **`SYNTENY`**: the pattern of genes assigned to the A or B clades along the contig. `*` indicates that the gene could be contributed by either clade; `~` indicates an ignored gene; `!` indicates a problem (should not occur).
-
 * **`DIRECTION`**: indicates this as a putative B-to-A transfer event, as determined from synteny (A genes flank the inserted B gene). `A?B` indicates that the direction was uncertain.
-
 * **`CLADE_A`**: the name of clade A.
-
 * **`CLADE_B`**: the name of clade B.
-
 * **`LCA`**: the lowest common ancestor of clades A and B. A higher-level LCA indicates a more remote LGT event.
- 
 * **`MELDED_A`**: if using a meld reporting option, the individual melded clades will be listed here. For example, if a contig could be explained by a transfer from *Genus_1 species_1.1* to either *Genus_2 species_2.1* or *Genus_2 species_2.2*, this field would list `species_2.1; species 2.2` and *Genus 2* would be given as `CLADE_A`.
-
 * **`MELDED_B`**: *see above*.
-
 * **`TAXONOMY_A`**: the full taxonomy of `CLADE_A`.
-
 * **`TAXONOMY_B`**: the full taxonomy of `CLADE_B`.
-
 * **`LOCI`**: Ccordinates of the loci (genes) that were considered for this contig in format `START:STOP:STRAND`.
-
 * **`ANNOTATIONS:UNIPROT`**: indicates that UniProt annotations were provided for the genes in the input sequence database (in format `UNIPROT=IDENTIFIER`). The best-scoring UniProt annotation for each gene is given here. (Additional annotations would appear as additional, similarly-formatted columns in the output.)
 
-## Advanced topics
+## Contig-level quality control
 
-### LGT event-level quality control
+The WAAFLE workflow described above has been optimized to distinguish LGTs from other biological events (e.g. gene deletion). However, it cannot intrinsically identify spurious LGTs resulting from misassembly (e.g. chimerism). For this, we provide a separate method, the scripts `waafle_junctions` and `waafle_qc`.
 
-The WAAFLE workflow described above has been optimized to distinguish LGTs from other biological events (e.g. gene deletion). However, it cannot intrinsically identify spurious LGTs resulting from misassembly (e.g. chimerism). For this, we provide a separate method, `waafle_qc`.
+### Quantifying junction support with `waafle_junctions`
 
-`waafle_qc` maps reads to contigs to evaluate gene-gene junctions (involved in LGTs or otherwise). `waafle_qc` considers a contig to be "OK" if all of its junctions are supported. A junction is supported if one of the followed two conditions to be true:
+`waafle_junctions` maps reads to contigs to quantify support for individiual gene-gene junctions. Specifically, two forms of support are considered/computed:
 
-1. Multiple sequencing fragments (paired reads) engulf the junction. This criterion is most applicable to junctions that are smaller than typical sequencing insert sizes (0-200 nts).
+1. Sequencing fragments (paired reads) that span the gene-gene junction. These are less common for junctions that are larger than typical sequencing insert sizes (~300 nts).
 
-2. The junction is well covered relative to its flanking genes. This criterion is most applicable to longer junctions (>200 nts).
+2. Relative junction coverage compared to the mean coverage of the two flanking genes. If the junction is not well covered relative to its flanking genes, it may represent a non-biological overlap.
 
-A sample call to `waafle_qc` might look like:
+A sample call to `waafle_junctions` looks like:
 
 ```
 $ waafle_qc \
@@ -187,39 +172,39 @@ $ waafle_qc \
   --reads2 contigs_reads.2.fq \
 ```
 
-With this call, `waafle_qc` will use [bowtie2](http://bowtie-bio.sourceforge.net/bowtie2/index.shtml) to index the contigs and then align the input reads (pairwise) against the index to produce a SAM file. (`waafle_qc` can also interpret a mapping from an existing SAM file.) The alignment results are then interpreted to score junctions and contigs, producing an output file for each.
+With this call, `waafle_junctions` will use [bowtie2](http://bowtie-bio.sourceforge.net/bowtie2/index.shtml) to index the contigs and then align the input reads (pairwise) against the index to produce a SAM file. (`waafle_junctions` can also interpret a mapping from an existing SAM file.) The alignment results are then interpreted to score individual junctions, producing an output file for each.
+
+* `contigs.junctions.tsv`
 
 A sample report for an individual junction looks like:
 
 ```
-CONTIG             contig_k119_11579 
-GENE1              4975:6210:-
-GENE2              6279:6896:+
-GAP                68
-HITS_JUNCTION      18
-HITS_OK            True
-COVERAGE_GENE1     32.4256
-COVERAGE_GENE2     33.3706
-COVERAGE_JUNCTION  43.0000
-COVERAGE_RATIO     1.3071
-COVERAGE_OK        True
-ACCEPTABLE         True
+CONTIG             SRS011086_k119_10006
+GENE1              1:1363:-
+GENE2              1451:2382:-
+LEN_GENE1          1363
+LEN_GENE2          932
+GAP                87
+JUNCTION_HITS      5
+COVERAGE_GENE1     8.1079
+COVERAGE_GENE2     11.3573
+COVERAGE_JUNCTION  10.9101
+RATIO              1.1210
 ```
 
-This junction was supported by 18 sequencing fragments (`HITS_JUNCTION`) and was similar in coverage to its flanking genes (`COVERAGE_RATIO`), thus passing both of the `waafle_qc` filters outlined above.
+This report indicates that the junction between genes 1 and 2 (which may or may not be an LGT junction) was well supported: it was spanned by 5 mate-pairs (`JUNCTION_HITS=5`) and had coverable coverage (`RATIO=1.12`) to the mean of its flanking genes (8.11 and 11.4).
 
-A sample report for a pair of contigs (one passing, one failing) looks like:
+`waafle_junctions` can be tuned to produce additional gene- and nucleotide-level quality reports. Consult the `--help` menu for a full list of options.
 
-```
-CONTIG             contig_k119_10097     contig_k119_10099 
-SUMMARY            OK                    FAILED
-LENGTH             2176                  4154
-LOCI               3                     5
-FAILING_JUNCTIONS  0                     1
-FAILURE_RATE       0.00                  0.25
-```
+### Using junction data for contig QC with `waafle_qc`
 
-`waafle_qc` can be tuned to filter junctions more or less stringently, as well as to filter contigs based on other properties (e.g. length). Consult the `--help` menu for a full list of options.
+XXX
+This needs a substantial rework.
+XXX
+
+`waafle_qc` can be tuned to XXX. Consult the `--help` menu for a full list of options.
+
+## Advanced topics
 
 ### Formatting a sequence database for WAAFLE
 

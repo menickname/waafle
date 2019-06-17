@@ -39,7 +39,7 @@ import numpy as np
 
 # ---------------------------------------------------------------
 # ---------------------------------------------------------------
-# GENERIC HELPER FUNCTIONS
+# GENERIC HELPER CLASSES / FUNCTIONS
 # ---------------------------------------------------------------
 # ---------------------------------------------------------------
 
@@ -141,7 +141,19 @@ def write_rowdict( rowdict=None, format=None, file=None,
             print( delim.join( items ), file=file )
         except:
             die( "Writing row failed." )
- 
+
+class Frame( ):
+
+    """ manipulate generic tabular data with headers """
+    
+    def __init__( self, path ):
+        self.reader = csv.reader( try_open( path ), dialect="excel-tab" )
+        self.headers = next( self.reader )
+        
+    def iter_rowdicts( self ):
+        for row in self.reader:
+            yield {h:v for h, v in zip( self.headers, row )}
+        
 # ---------------------------------------------------------------
 # ---------------------------------------------------------------
 # WORKING WITH BLAST

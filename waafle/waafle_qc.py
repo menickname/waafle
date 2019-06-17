@@ -40,9 +40,10 @@ from waafle import utils as wu
 # ---------------------------------------------------------------
 
 description = wu.describe( """
-{SCRIPT}: Applies junction results to QC WAAFLE calls
+{SCRIPT}: Applies junction results to QC WAAFLE calls.
 
-To be completed.
+Filter WAAFLE lgt output to require that junctions
+be supported by mate-pair or coverage evidence.
 """ )
 
 # ---------------------------------------------------------------
@@ -66,12 +67,12 @@ def get_args( ):
 
     g = parser.add_argument_group( "required inputs" )
     g.add_argument( 
-        "contigs",
-        help="contigs file (fasta format)",
+        "contig_profile",
+        help="lgt output from waafle_orgscorer (tsv format)",
         )
     g.add_argument( 
-        "gff",
-        help="GFF file for provided contigs",
+        "junctions",
+        help="output from waafle_junctions for contigs of interest",
         )
 
     g = parser.add_argument_group( "filtering parameters" )
@@ -89,12 +90,13 @@ def get_args( ):
         metavar="<float>",
         help="minimum coverage (relative to flanking genes) to 'ok' a junction\n[default: 0.5]",
         )
+    """
     g.add_argument( 
         "--min-contig-genes",
         type=int,
         default=2,
         metavar="<int>",
-        help="minimum gene count for the contig\n[default: 2]",
+        help="minimum gene count for the contig\n[default: 1]",
         )
     g.add_argument( 
         "--min-contig-length",
@@ -103,12 +105,22 @@ def get_args( ):
         metavar="<int>",
         help="minimum length for the contig\n[default: 500]",
         )
+    """
+
+    g = parser.add_argument_group( "misc options" )
+    """
     g.add_argument( 
-        "--max-contig-failures",
-        type=float,
-        default=0,
-        metavar="<float>",
-        help="allowed fraction of failing junctions\n[default: 0]",
+        "--ab-only",
+        action="store_true",
+        help="Only apply filtering to LGT junctions (AB/BA)",
+        )
+    """
+    g.add_argument( 
+        "--outfile",
+        type=str,
+        default=None,
+        metavar="<path>",
+        help="Path for filtered outputs\n[default: derive from input]",
         )
 
     args = parser.parse_args( )
@@ -122,39 +134,61 @@ def main( ):
 
     args = get_args( )
 
-    # write contig report
-    wu.say( "Writing contig report." )
-    with wu.try_open( p_contig_qc, "w" ) as fh:
-        wu.write_rowdict( 
-            format=c_formats["contig_qc"], 
-            file=fh, )
-        for c in sorted( contig_lengths ):
-            ok = True
-            rowdict = {}
-            rowdict["contig"] = c
-            rowdict["length"] = my_len = contig_lengths[c]
-            if my_len < args.min_contig_length:
-                ok = False
-            rowdict["loci"] = my_loci = len( contig_loci.get( c, [] ) )
-            if my_loci < args.min_contig_genes:
-                ok = False
-            rowdict["failing_junctions"] = my_fails = failures.get( c, 0 )
-            # note pseudocount to avoid /0 on 1-gene contigs
-            my_rate = my_fails / (my_loci - 1 + 1e-6)
-            # define rate to be 0 on contigs without a junction
-            rowdict["failure_rate"] = myrate = 0.0 if my_loci < 2 else my_rate
-            if my_rate > args.max_contig_failures:
-                ok = False
-            rowdict["summary"] = "OK" if ok else "FAILED"
-            # write
-            wu.write_rowdict( 
-                rowdict=rowdict,
-                format=c_formats["contig_qc"],
-                file=fh,
-                precision=2,
-                )
+    # load junctions data
+    hits = {}
+    covs = {}
+    wu.say( "Loading junctions report." )
+    F = wu.Frame( args.junctions )
+    # loop over junctions
+    for R in F.iter_rowdicts( ):
+        contig = R["CONTIG"]
+        gene1 = R["GENE1"]
+        gene2 = R["GENE2"]
+        hits.setdefault( contig, {} )[(gene1, gene2)] = int( R["JUNCTION_HITS"] )
+        covs.setdefault( contig, {} )[(gene1, gene2)] = float( R["RATIO"] )
+
+    # filter contigs
+    total = 0
+    failed = 0
+    outfile = args.outfile
+    if outfile is None:
+        outfile = args.contig_profile + ".qc_pass"
+    # load results, open new file, write headers
+    F = wu.Frame( args.contig_profile )
+    fh = wu.try_open( outfile, "w" )
+    wu.write_rowdict( None, F.headers, file=fh )
+    # loop over contigs
+    for R in F.iter_rowdicts( ):
+        total += 1
+        contig = R["CONTIG_NAME"]
+        # contig-level filters
+        if contig not in hits or contig not in covs:
+            failed += 1
+            wu.say( "Missing junction data for contig:", contig )
+            continue        
+        loci = R["LOCI"].split( "|" )
+        synteny = R["SYNTENY"]
+        qc_pass = True
+        for i in range( len( loci ) - 1 ):
+            my_test = True
+            spair = synteny[i] + synteny[i+1]
+            if spair not in ["AB", "BA"]:
+                continue
+            gpair = (loci[i], loci[i+1])
+            my_hits = hits[contig].get( gpair, -1 )
+            my_hits = my_hits >= args.min_junction_hits
+            my_covs = covs[contig].get( gpair, -1 )
+            my_covs = my_covs >= args.min_junction_ratio
+            my_test = my_hits or my_covs
+            qc_pass = qc_pass and my_test
+        if not qc_pass:
+            failed += 1
+            wu.say( "Failed QC:", contig )
+        else:
+            wu.write_rowdict( R, F.headers, file=fh )
 
     # wrap-up
+    wu.say( "Failure rate: {} of {} ({:.1f}%)".format( failed, total, 100 * failed / float( total ) ) )
     wu.say( "Finished successfully." )           
                 
 if __name__ == "__main__":
