@@ -12,7 +12,7 @@ WAAFLE integrates gene sequence homology and taxonomic provenance to identify me
 
 Consider the following pair of examples:
 
-![Fig. 1](https://bitbucket.org/biobakery/waafle/src/default/website/webfig1.png "Fig. 1")
+![Fig. 1](https://bitbucket.org/biobakery/waafle/raw/tip/website/webfig1.png "Fig. 1")
 
 Both cases consider contigs with six protein-coding loci (determined from WAAFLE itself or an independent ORF-calling program such as [Prodigal](https://github.com/hyattpd/Prodigal)). In Example 1, genes from species **C** are able to explain all of the loci reasonably well (with scores exceeding k~1~). Hence, WAAFLE will report this contig as a one-species contig explained by species **C**.
 
