@@ -6,7 +6,7 @@
 
 ## What is WAAFLE?
 
-Lateral gene transfer (LGT) is an important mechanism for genome diversification in microbial communities, including the human microbiome. While methods exist to identify LGTs from sequenced isolate genomes, identifying LGTs from community metagenomes remains an open problem. To address this, we developed **WAAFLE**: the **W**orkflow to **A**nnotate **A**ssemblies and **F**ind **L**GT **E**vents.
+Lateral gene transfer (LGT) is an important mechanism for genome diversification in microbial communities, including the human microbiome. While methods exist to identify LGTs from sequenced isolate genomes, identifying LGTs from community metagenomes remains an open problem. To address this, we developed **WAAFLE**: a **W**orkflow to **A**nnotate **A**ssemblies and **F**ind **L**GT **E**vents.
 
 WAAFLE integrates gene sequence homology and taxonomic provenance to identify metagenomic contigs explained by pairs of microbial clades but not by single clades (i.e. putative LGTs). More specifically, for each locus in a contig, WAAFLE identifies the best hit to each species in a pangenome database. WAAFLE then looks for a species whose minimum per-locus score exceeds a lenient homology threshold (k~1~). If one or more species meet this criterion, then the contig is assigned to the species with the best average score. Otherwise, the process is repeated for pairs of species. If all per-locus scores for a pair of species exceed a stringent homology threshold (k~2~), then the contig is considered a putative LGT between those species.
 
@@ -22,9 +22,11 @@ Note that in Example 2, if species **C** had hits to the 2nd and 5th loci that e
 
 ## Getting started with WAAFLE
 
-You can test if WAAFLE is available in your computing environment by running `waafle_search.py -h`, which should return a help menu. If it doesn't, then please consult the [WAAFLE manual](https://bitbucket.org/biobakery/waafle/src/default/README.md) for help installing and setting up WAAFLE.
+You can test if WAAFLE is available in your computing environment by running `waafle_search -h`, which should return a help menu. If it doesn't, then please consult the [WAAFLE manual](https://bitbucket.org/biobakery/waafle/src/default/README.md) for help installing and setting up WAAFLE.
 
-Assuming WAAFLE is available, use `cd` to enter the `waafle/` folder, and then the `demo/` subfolder. The commands below assume you are running the demo from the `demo/` subfolder.
+If you cloned the WAAFLE repository, or are working in a bioBakery computing environment, you may already have the WAAFLE demo files available to you. If not, or if you're not sure, you can [download them from here](https://bitbucket.org/biobakery/waafle/get/tip.zip).
+
+When the download is complete (a file called `tip.zip`), unpack it by running `unzip tip.zip` on the command line. Then use the `cd` command to enter the resulting folder (called `biobakery-waafle-###`, where `###` is a random string of letters and numbers). You will find a `demo/` as a subfolder of the folder you just entered.
 
 ## Demo introduction
 

@@ -53,7 +53,7 @@ An individual WAAFLE run requires one or two non-fixed inputs: 1) a file contain
 
 Contigs should be provided as nucleotide sequences in FASTA format. Contigs are expected to have unique, BLAST-compatible headers. WAAFLE is optimized for working with fragmentary contigs from partially assembled metagenomes (spanning 2-20 genes, or roughly 1-20 kb). WAAFLE is not optimized to work with extremely long contigs (100s of kbs), scaffolds, or closed genomes. The WAAFLE developers recommend [MEGAHIT](https://github.com/voutcn/megahit) as a general-purpose metagenomic assembler.
 
-* [A sample contigs input file](https://bitbucket.org/biobakery/waafle/src/default/demo/input/demo_contigs.fna)
+* [A sample contigs input file](https://bitbucket.org/biobakery/waafle/raw/tip/demo/input/demo_contigs.fna)
 
 ### Input ORF calls (optional)
 
@@ -198,11 +198,17 @@ This report indicates that the junction between genes 1 and 2 (which may or may 
 
 ### Using junction data for contig QC with `waafle_qc`
 
-XXX
-This needs a substantial rework.
-XXX
+The `waafle_qc` script interprets the output of `waafle_junctions` to remove contigs with weak read support at one or more junctions. Currently, the script focuses on the junctions flanking LGT'ed genes among putative LGT-containing contigs.
 
-`waafle_qc` can be tuned to XXX. Consult the `--help` menu for a full list of options.
+A sample call to `waafle_qc` looks like:
+
+```
+$ waafle_qc contigs.lgt.tsv contigs.junctions.tsv
+```
+
+Where `contigs.junctions.tsv` is the output of `waafle_junctions` on this set of contigs and its underlying reads. This produces a file `contigs.lgt.tsv.qc_pass`: a subset of the original LGT calls that were supported by read-level evidence.
+
+By default, a junction is supported if it was contained in 2+ mate-pairs *or* had >0.5x the average coverage of its two flanking genes. These thresholds are tunable with the `--min-junction-hits` and `--min-junction-ratio` parameters of `waafle_qc`, respectively. Consult the `--help` menu for a full list of options.
 
 ## Advanced topics
 
