@@ -36,7 +36,7 @@ $ unzip default.zip
 * Python 3+ or 2.7+
 * Python `numpy` (tested with v1.13.3)
 * [NCBI BLAST+](https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Web&PAGE_TYPE=BlastDocs&DOC_TYPE=Download) (tested with v2.6.0)
-* [bowtie2](http://bowtie-bio.sourceforge.net/bowtie2/index.shtml) (for performing read-level QC; tested with version 2.2.3)
+* [bowtie2](http://bowtie-bio.sourceforge.net/bowtie2/index.shtml) (for performing read-level QC; tested with v2.2.3)
 
 ## Database requirements
 
