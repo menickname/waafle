@@ -9,7 +9,7 @@ setuptools.setup(
     author = "Eric Franzosa",
     author_email = "franzosa@hsph.harvard.edu",
     license = "MIT",
-    description = "WAAFLE: a Workflow to Annotate Assemblies and find LGT Events",
+    description = "WAAFLE: a Workflow to Annotate Assemblies and Find LGT Events",
     long_description = long_description,
     long_description_content_type = "text/markdown",
     url = "https://huttenhower.sph.harvard.edu/waafle",
