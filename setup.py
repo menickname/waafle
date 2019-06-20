@@ -9,7 +9,7 @@ setuptools.setup(
     author = "Eric Franzosa",
     author_email = "franzosa@hsph.harvard.edu",
     license = "MIT",
-    description = "Identify LGT events from metagenomic contigs.",
+    description = "WAAFLE: a Workflow to Annotate Assemblies and find LGT Events",
     long_description = long_description,
     long_description_content_type = "text/markdown",
     url = "https://huttenhower.sph.harvard.edu/waafle",
@@ -19,11 +19,11 @@ setuptools.setup(
     ],
     entry_points = {
         "console_scripts": [
-            "waafle_genecaller = waafle.waafle_genecaller:main",
-            "waafle_junctions = waafle.waafle_junctions:main",
-            "waafle_orgscorer = waafle.waafle_orgscorer:main",
-            "waafle_qc = waafle.waafle_qc:main",
             "waafle_search = waafle.waafle_search:main",
+            "waafle_genecaller = waafle.waafle_genecaller:main",
+            "waafle_orgscorer = waafle.waafle_orgscorer:main",
+            "waafle_junctions = waafle.waafle_junctions:main",
+            "waafle_qc = waafle.waafle_qc:main",
         ],
     },
     install_requires = [
