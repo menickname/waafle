@@ -170,7 +170,7 @@ def get_args( ):
         "--basename",
         default=None,
         metavar="<str>",
-        help="basename for output files\n[default: derived from input]",
+        help="basename for output files\n[default: derived from contigs file]",
         )
     g.add_argument(
         "--write-details",
@@ -815,8 +815,6 @@ def write_main_output_files( contigs, taxonomy, args ):
 
     # open output file handles
     wu.say( "Initializing outputs." )
-    if args.basename is None:
-        args.basename = os.path.split( args.blastout )[1].split( "." )[0]
     handles = {}
     for option in ["lgt", "no_lgt", "unclassified"]:
         file_name = ".".join( [args.basename, option, "tsv"] )
@@ -926,6 +924,10 @@ def main( ):
         C = contigs[contig_name]
         C.attach_loci( loci )
 
+    # check basename in preparation for writing output
+    if args.basename is None:
+        args.basename = os.path.split( args.contigs )[1].split( "." )[0]
+        
     # prepare details file
     details = None
     if args.write_details:
