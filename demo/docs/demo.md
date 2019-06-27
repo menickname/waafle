@@ -38,9 +38,9 @@ Under the WAAFLE `demo/` folder you'll find three subfolders:
 
 The `input/` folder contains three pieces of data:
 
-* `demo_contigs.fasta` is a set of input contigs derived from [HMP stool sample SRS011084](https://www.hmpdacc.org/hmp/). (These contigs have been pre-screened for uniform coverage to help rule out misassembly events.)
+* [`demo_contigs.fasta`](https://bitbucket.org/biobakery/waafle/raw/tip/demo/input/demo_contigs.fasta) is a set of input contigs derived from [HMP stool sample SRS011084](https://www.hmpdacc.org/hmp/). (These contigs have been pre-screened for uniform coverage to help rule out misassembly events.)
 * `demo_waafledb/` is a reduced, WAAFLE-formatted BLAST database.
-* `demo_taxonomy.tsv` is a reduced taxonomy file for the species in the BLAST database.
+* [`demo_taxonomy.tsv`](https://bitbucket.org/biobakery/waafle/raw/tip/demo/input/demo_taxonomy.tsv) is a reduced taxonomy file for the species in the BLAST database.
 
 Inspect the demo files with `less` or other shell commands to answer the following discussion questions.
 
@@ -58,19 +58,13 @@ The first step in the WAAFLE workflow is to search the input contigs against a W
 $ waafle_search.py --help
 ```
 
-The two critical parameters are the query (contigs) and database. Let's search the demo contigs against the demo database:
+The two critical parameters are the query (contigs) and database. Let's search the demo contigs ([`demo_contigs.fasta`](https://bitbucket.org/biobakery/waafle/raw/tip/demo/input/demo_contigs.fasta)) against the demo database:
 
 ```
 $ waafle_search.py input/demo_contigs.fna input/demo_waafledb/demo_waafledb
 ```
 
-The command will finish quickly as both the input and database are small. Note the following line from the BLAST command:
-
-```'-outfmt 6 qseqid sseqid qlen slen length qstart qend sstart send pident positive gaps evalue bitscore sstrand'```
-
-This is specifying the format of the tabular BLAST output. WAAFLE uses a number of non-default BLAST alignment statistics to compute its homology scores. You can find descriptions of these statistics in the BLAST detailed help menu, accessible by running `$ blastn -help`.
-
-Let's inspect the BLAST output with `$ less demo_contigs.blastout`:
+The command will finish quickly as both the input and database are small. By default, this produces an output file [`demo_contigs.blastout`](https://bitbucket.org/biobakery/waafle/raw/tip/demo/output/demo_contigs.blastout). Let's inspect this output file with `$ less demo_contigs.blastout`:
 
 ```
 1458  GENE000041992|s__Faecalibacterium_prausnitzii|UniProt=D4JZK5  5194  1347  1347  3675  5021  1347  1     92.72  1249  0   0.0     1947  minus
@@ -112,7 +106,7 @@ This utility requires a single input to run: the BLAST output file:
 $ waafle_genecaller.py demo_contigs.blastout
 ```
 
-This produced a file in GFF format called `demo_contigs.gff`. Inspect its contents using the `less` command:
+This produced a file in GFF format called [`demo_contigs.gff`](https://bitbucket.org/biobakery/waafle/raw/tip/demo/output/demo_contigs.gff). Inspect its contents using the `less` command:
 
 ```
 1458  waafle_genecaller  gene  106   679   .  +  0  .
@@ -177,9 +171,9 @@ $ waafle_orgscorer.py \
 
 This produces three output files:
 
-* `demo_contigs.lgt.tsv` contains a description of predicted LGT events.
-* `demo_contigs.no_lgt.tsv` contains descriptions of contigs explained by single species/clades.
-* `demo_contigs.unclassified.tsv` contains descriptions of contigs that could not be explained by either single species or pairs of species.
+* [`demo_contigs.lgt.tsv`](https://bitbucket.org/biobakery/waafle/raw/tip/demo/output/demo_contigs.lgt.tsv) contains a description of predicted LGT events.
+* [`demo_contigs.no_lgt.tsv`](https://bitbucket.org/biobakery/waafle/raw/tip/demo/output/demo_contigs.no_lgt.tsv) contains descriptions of contigs explained by single species/clades.
+* [`demo_contigs.unclassified.tsv`](https://bitbucket.org/biobakery/waafle/raw/tip/demo/output/demo_contigs.unclassified.tsv) contains descriptions of contigs that could not be explained by either single species or pairs of species.
 
 ### Examining one-clade (no-LGT) contigs
 
@@ -277,7 +271,7 @@ $ ./prodigal.linux \
 	-o demo_contigs.prodigal.gff
 ```
 
-(If you don't have Prodigal available on your system, you can use the Prodigal GFF file in `output_prodigal/`.) Inspect the alternate GFF file with `less`. You'll find it has more details than the equivalent file produced by WAAFLE, but the overall format is the same.
+(If you don't have Prodigal available on your system, you can use the Prodigal GFF file in `output_prodigal/`.) Inspect the alternate GFF file [`demo_contigs.prodigal.gff`](https://bitbucket.org/biobakery/waafle/raw/tip/demo/output_prodigal/demo_contigs.prodigal.gff) with `less`. You'll find it has more details than the equivalent file produced by WAAFLE, but the overall format is the same.
 
 Repeat **Step 3** above using the alternate GFF file and adding the argument `--basename demo_contigs.prodigal` to the `waafle_orgscorer` call (this will prevent overwriting the original outputs). Inspect the outputs.
 
