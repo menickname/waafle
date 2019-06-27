@@ -38,7 +38,7 @@ Under the WAAFLE `demo/` folder you'll find three subfolders:
 
 The `input/` folder contains three pieces of data:
 
-* [`demo_contigs.fasta`](https://bitbucket.org/biobakery/waafle/raw/tip/demo/input/demo_contigs.fasta) is a set of input contigs derived from [HMP stool sample SRS011084](https://www.hmpdacc.org/hmp/). (These contigs have been pre-screened for uniform coverage to help rule out misassembly events.)
+* [`demo_contigs.fna`](https://bitbucket.org/biobakery/waafle/raw/tip/demo/input/demo_contigs.fna) is a set of input contigs derived from [HMP stool sample SRS011084](https://www.hmpdacc.org/hmp/). (These contigs have been pre-screened for uniform coverage to help rule out misassembly events.)
 * `demo_waafledb/` is a reduced, WAAFLE-formatted BLAST database.
 * [`demo_taxonomy.tsv`](https://bitbucket.org/biobakery/waafle/raw/tip/demo/input/demo_taxonomy.tsv) is a reduced taxonomy file for the species in the BLAST database.
 
@@ -58,7 +58,7 @@ The first step in the WAAFLE workflow is to search the input contigs against a W
 $ waafle_search.py --help
 ```
 
-The two critical parameters are the query (contigs) and database. Let's search the demo contigs ([`demo_contigs.fasta`](https://bitbucket.org/biobakery/waafle/raw/tip/demo/input/demo_contigs.fasta)) against the demo database:
+The two critical parameters are the query (contigs) and database. Let's search the demo contigs ([`demo_contigs.fna`](https://bitbucket.org/biobakery/waafle/raw/tip/demo/input/demo_contigs.fna)) against the demo database:
 
 ```
 $ waafle_search.py input/demo_contigs.fna input/demo_waafledb/demo_waafledb
