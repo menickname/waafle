@@ -1,8 +1,7 @@
 # WAAFLE
 
-**WAAFLE** (a **W**orkflow to **A**nnotate **A**ssemblies and **F**ind **L**GT Events) is a method for finding novel LGT (Lateral Gene Transfer) events in assembled metagenomes, including those from human microbiomes. WAAFLE was developed in the [Huttenhower Lab](http://huttenhower.sph.harvard.edu) at the Harvard T.H. Chan School of Public Health by **Tiffany Hsu** and **Eric A. Franzosa**. Please direct questions to the [WAAFLE user group](waafle-users@googlegroups.com).
+**WAAFLE** (a **W**orkflow to **A**nnotate **A**ssemblies and **F**ind **L**GT Events) is a method for finding novel LGT (Lateral Gene Transfer) events in assembled metagenomes, including those from human microbiomes. WAAFLE was developed in the [Huttenhower Lab](http://huttenhower.sph.harvard.edu) at the Harvard T.H. Chan School of Public Health by **Tiffany Hsu** and **Eric A. Franzosa**. Please direct questions to the [bioBakery Support Forum in WAAFLE category](https://forum.biobakery.org/c/Microbial-community-profiling/WAAFLE).
 
-[TOC]
 
 ## Citation
 
@@ -21,14 +20,14 @@ $ pip install waafle
 You can also clone the WAAFLE package from bitbucket with mercurial (`hg`):
 
 ```
-$ hg clone https://bitbucket.org/biobakery/waafle
+$ git clone https://github.com/biobakery/waafle.git
 ```
 
 Or download and inflate WAAFLE package directly:
 
 ```
-$ wget https://bitbucket.org/biobakery/waafle/get/default.zip
-$ unzip default.zip
+$ wget https://github.com/biobakery/waafle/archive/master.zip
+$ unzip master.zip
 ```
 
 ## Software requirements
@@ -53,14 +52,14 @@ An individual WAAFLE run requires one or two non-fixed inputs: 1) a file contain
 
 Contigs should be provided as nucleotide sequences in FASTA format. Contigs are expected to have unique, BLAST-compatible headers. WAAFLE is optimized for working with fragmentary contigs from partially assembled metagenomes (spanning 2-20 genes, or roughly 1-20 kb). WAAFLE is not optimized to work with extremely long contigs (100s of kbs), scaffolds, or closed genomes. The WAAFLE developers recommend [MEGAHIT](https://github.com/voutcn/megahit) as a general-purpose metagenomic assembler.
 
-* [A sample contigs input file](https://bitbucket.org/biobakery/waafle/raw/tip/demo/input/demo_contigs.fna)
+* [A sample contigs input file](https://github.com/biobakery/waafle/blob/master/demo/input/demo_contigs.fna)
 
 ### Input ORF calls (optional)
 
 2) The optional GFF file, if provided, should conform to the [GFF format]([https://useast.ensembl.org/info/website/upload/gff.html). The WAAFLE developers recommend [Prodigal](https://github.com/hyattpd/Prodigal) as a general-purpose ORF caller with GFF output.
 
-* [A sample GFF file produced by WAAFLE](https://bitbucket.org/biobakery/waafle/src/default/demo/output/demo_contigs.gff)
-* [A sample GFF file produced by Prodigal](https://bitbucket.org/biobakery/waafle/src/default/demo/output_prodigal/demo_contigs.gff)
+* [A sample GFF file produced by WAAFLE](https://github.com/biobakery/waafle/blob/master/demo/output/demo_contigs.gff)
+* [A sample GFF file produced by Prodigal](https://github.com/biobakery/waafle/blob/master/demo/output_prodigal/demo_contigs.prodigal.gff)
 
 ## Performing a WAAFLE analysis
 
