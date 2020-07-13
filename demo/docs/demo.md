@@ -1,10 +1,14 @@
-<h1>Welcome to the WAAFLE Demo</h1>
+<h1>Welcome to the WAAFLE tutorial</h1>
+
+**WAAFLE** (a **W**orkflow to **A**nnotate **A**ssemblies and **F**ind **L**GT **E**vents) is a method for identifying novel lateral gene transfer (LGT) events in assembled metagenomic contigs. "Novel" in this context means that the LGT event has not been previously observed in a sequenced isolate genome of the putative recipient species.
+
+You can install [WAAFLE from pypi](https://pypi.org/project/waafle/) or [from source](https://github.com/biobakery/waafle). For additional help with installation and use, see [the WAAFLE manual](https://github.com/biobakery/waafle) or [the WAAFLE channel](https://forum.biobakery.org/c/Microbial-community-profiling/WAAFLE/29) of the bioBakery support forum.
 
 <h2>Table of contents</h2>
 
 <!-- TOC -->
 
-- [What is WAAFLE?](#what-is-waafle)
+- [How does WAAFLE work?](#how-does-waafle-work)
 - [Getting started with WAAFLE](#getting-started-with-waafle)
 - [Demo introduction](#demo-introduction)
 - [Step 1. Generate BLAST hits with waafle_search.](#step-1-generate-blast-hits-with-waafle_search)
@@ -20,9 +24,7 @@
 
 <!-- /TOC -->
 
-## What is WAAFLE?
-
-Lateral gene transfer (LGT) is an important mechanism for genome diversification in microbial communities, including the human microbiome. While methods exist to identify LGTs from sequenced isolate genomes, identifying LGTs from community metagenomes remains an open problem. To address this, we developed **WAAFLE**: a **W**orkflow to **A**nnotate **A**ssemblies and **F**ind **L**GT **E**vents.
+## How does WAAFLE work?
 
 WAAFLE integrates gene sequence homology and taxonomic provenance to identify metagenomic contigs explained by pairs of microbial clades but not by single clades (i.e. putative LGTs). More specifically, for each locus in a contig, WAAFLE identifies the best hit to each species in a pangenome database. WAAFLE then looks for a species whose minimum per-locus score exceeds a lenient homology threshold (k<sub>1</sub>). If one or more species meet this criterion, then the contig is assigned to the species with the best average score. Otherwise, the process is repeated for pairs of species. If all per-locus scores for a pair of species exceed a stringent homology threshold (k<sub>2</sub>), then the contig is considered a putative LGT between those species.
 
@@ -281,7 +283,7 @@ In the workflow above, we used `waafle_genecaller` to identify potential coding 
 Run prodigal on the input contigs to produce an alternate GFF file:
 
 ```
-$ ./prodigal.linux \
+$ prodigal.linux \
 	-i input/demo_contigs.fna \
 	-f gff \
 	-o demo_contigs.prodigal.gff
